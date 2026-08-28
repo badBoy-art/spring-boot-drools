@@ -1,0 +1,100 @@
+package com.example.drools.service;
+
+import com.example.drools.dao.RuleTypeMetaDao;
+import com.example.drools.entity.RuleTypeField;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.stereotype.Component;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 规则参数校验器：用 rule_type_field 元数据校验规则参数，
+ * 让「前端表单校验」与「后端发布前校验」共用同一份 schema。
+ */
+@Component
+public class RuleParamValidator {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private final RuleTypeMetaDao metaDao;
+
+    public RuleParamValidator(RuleTypeMetaDao metaDao) {
+        this.metaDao = metaDao;
+    }
+
+    /** 校验规则参数 JSON，不合法抛 IllegalArgumentException */
+    public void validate(String ruleType, String ruleParamsJson) {
+        Map<String, Object> params = parse(ruleParamsJson);
+        List<RuleTypeField> fields = metaDao.findFields(ruleType);
+        for (RuleTypeField f : fields) {
+            Object v = params.get(f.getFieldKey());
+            String name = f.getFieldName() + "(" + f.getFieldKey() + ")";
+
+            if (Boolean.TRUE.equals(f.getRequired())
+                    && (v == null || String.valueOf(v).trim().isEmpty())) {
+                throw new IllegalArgumentException("参数 " + name + " 必填");
+            }
+            if (v == null) {
+                continue;
+            }
+
+            switch (f.getFieldType()) {
+                case "NUMBER":
+                    if (!(v instanceof Number)) {
+                        throw new IllegalArgumentException("参数 " + name + " 必须是数字");
+                    }
+                    checkRange(f, name, ((Number) v).doubleValue());
+                    break;
+                case "DECIMAL":
+                    if (!(v instanceof Number)) {
+                        throw new IllegalArgumentException("参数 " + name + " 必须是数字");
+                    }
+                    double dv = ((Number) v).doubleValue();
+                    if (dv < 0 || dv > 1) {
+                        throw new IllegalArgumentException("参数 " + name + " 必须在 0 到 1 之间");
+                    }
+                    checkRange(f, name, dv);
+                    break;
+                case "ENUM":
+                    String sv = String.valueOf(v);
+                    if (f.getEnumOptions() != null
+                            && !Arrays.asList(f.getEnumOptions().split(",")).contains(sv)) {
+                        throw new IllegalArgumentException("参数 " + name + " 必须是以下之一: " + f.getEnumOptions());
+                    }
+                    break;
+                case "CSV":
+                case "STRING":
+                    if (String.valueOf(v).trim().isEmpty()) {
+                        throw new IllegalArgumentException("参数 " + name + " 不能为空");
+                    }
+                    break;
+                default:
+                    // 未知类型不校验
+            }
+        }
+    }
+
+    private void checkRange(RuleTypeField f, String name, double dv) {
+        if (f.getMinValue() != null && dv < Double.parseDouble(f.getMinValue())) {
+            throw new IllegalArgumentException("参数 " + name + " 不能小于 " + f.getMinValue());
+        }
+        if (f.getMaxValue() != null && dv > Double.parseDouble(f.getMaxValue())) {
+            throw new IllegalArgumentException("参数 " + name + " 不能大于 " + f.getMaxValue());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parse(String json) {
+        try {
+            if (json == null || json.trim().isEmpty()) {
+                return new HashMap<>();
+            }
+            return MAPPER.readValue(json, Map.class);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("规则参数不是合法 JSON: " + json, e);
+        }
+    }
+}
