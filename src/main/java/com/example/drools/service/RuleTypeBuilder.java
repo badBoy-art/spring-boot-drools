@@ -68,9 +68,8 @@ public class RuleTypeBuilder {
         }
 
         if ("ACTION".equalsIgnoreCase(mode)) {
-            require(actionCode, "调接口模式必须选接口(actionCode)");
-            fields.add(0, field("actionCode", "接口动作码", "STRING", actionCode, null, null, null,
-                    "rule_http_action.action_code", 1));
+            throw new IllegalArgumentException("「调接口」模式已移除：接口调用改由业务系统处理，"
+                    + "引擎只输出决策（请改用「写单据字段 / 打标 / 只加消息」模式）");
         }
         if (exposeFieldUnit) {
             fields.add(field("fieldPath", "判定字段路径", "STRING", fieldPath, null, null, null,
@@ -141,11 +140,10 @@ public class RuleTypeBuilder {
             body = "    when\n"
                     + "        " + when + "\n"
                     + "    then\n"
-                    + "        httpActionGateway.invoke(\"${actionCode}\", " + factVar + ");\n"
-                    + "        update(" + factVar + ");\n"
+                    + "        " + factVar + ".getExt().put(\"decision\", \"命中，由业务按规则结果处理\");\n"                    + "        update(" + factVar + ");\n"
                     + "        " + factVar + (orderFact ? ".addMessage" : ".addRuleMessage")
                     + "(\"" + defaultIfEmpty(message,
-                    "单据[" + factVar + "]命中，已调用接口 ${actionCode}").replace("\"", "'") + "\");\n";
+                    "单据[" + factVar + "]命中（接口调用已移交业务系统处理）").replace("\"", "'") + "\");\n";
         }
 
         // ---------- 组装结果 ----------
@@ -173,7 +171,6 @@ public class RuleTypeBuilder {
         }
         return "package com.example.drools.dynamic;\n\ndialect \"mvel\"\n\n"
                 + "import com.example.drools.domain.Order;\nimport com.example.drools.domain.DocFact;\n\n"
-                + "global com.example.drools.http.HttpActionGateway httpActionGateway;\n\n"
                 + "rule \"" + ruleType + "_示例\"\n" + rendered + "\nend\n";
     }
 

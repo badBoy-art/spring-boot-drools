@@ -1,6 +1,5 @@
 package com.example.drools.service;
 
-import com.example.drools.dao.RuleHttpActionDao;
 import com.example.drools.entity.RuleStep;
 import org.springframework.stereotype.Service;
 
@@ -31,11 +30,6 @@ public class RuleStepBuilder {
 
     private static final Pattern EXT_REF = Pattern.compile("\\$\\{ext\\.([A-Za-z0-9_\\u4e00-\\u9fa5]+)}");
 
-    private final RuleHttpActionDao actionDao;
-
-    public RuleStepBuilder(RuleHttpActionDao actionDao) {
-        this.actionDao = actionDao;
-    }
 
     /** 生成步骤链 DRL：返回 {fields, templateBody, drlPreview, steps(带生成的规则名), variables} */
     public Map<String, Object> build(Map<String, Object> request) {
@@ -109,25 +103,9 @@ public class RuleStepBuilder {
             rhs.append("        update(").append(factVar).append(");\n");
             String defaultMsg;
             if ("CALL".equals(actionType)) {
-                if (actionCode.isEmpty()) throw new IllegalArgumentException("第 " + no + " 步选了「调接口」但没选接口");
-                checkActionExists(actionCode, no);
-                String paramJson = str(raw.get("paramJson"));
-                if (paramJson.isEmpty()) {
-                    rhs.append("        httpActionGateway.invoke(\"${").append(actionKey).append("}\", ").append(factVar).append(");\n");
-                    defaultMsg = "第" + no + "步[" + stepName + "]已调接口 ${" + actionKey + "}";
-                } else {
-                    // 步骤级入参覆写：运营在规则上直接给这一步传参（值支持 ${...} 与表达式）。
-                    // 先把 ${ 转义成 $\{ —— 这些是"运行期引用"（ext/单据字段/docCode），不该被
-                    // DRL 模板的占位符校验当成"未替换的参数"；网关发送前会还原成 ${ 再渲染。
-                    String literal = paramJson.replace("${", "$\\{").replace("\\", "\\\\").replace("\"", "\\\"");
-                    rhs.append("        httpActionGateway.invoke(\"${").append(actionKey).append("}\", ").append(factVar)
-                       .append(", \"").append(literal).append("\");\n");
-                    defaultMsg = "第" + no + "步[" + stepName + "]已调接口 ${" + actionKey + "}（带规则上配的入参）";
-                }
-                // 该接口配的返回值映射会回填 ext，后续步骤可引用
-                for (String back : returnFields(actionCode)) availableExt.add(back);
-                fields.add(field(actionKey, "第" + no + "步 调用的接口", "STRING", actionCode, null, null, null,
-                        "rule_http_action.action_code（④ 里可换）", no * 10));
+                throw new IllegalArgumentException("第 " + no + " 步选了「调接口」：接口调用已改由业务系统处理"
+                        + "（引擎只输出决策：写单据字段 / 打标 / 加消息），请把这一步改成写字段或加消息");
+
             } else if ("SET_EXT".equals(actionType)) {
                 if (extField.isEmpty()) throw new IllegalArgumentException("第 " + no + " 步选了「写单据字段」但没填字段名");
                 rhs.append("        ").append(factVar).append(".getExt().put(\"").append(extField).append("\", \"")
@@ -180,30 +158,15 @@ public class RuleStepBuilder {
         return out;
     }
 
-    /** 该接口的返回值映射会回填哪些 ext 字段（供页面提示"后续步骤可引用的变量"） */
-    public List<String> returnFields(String actionCode) {
-        List<String> out = new ArrayList<String>();
-        if (actionCode == null || actionCode.isEmpty()) return out;
-        for (com.example.drools.entity.RuleHttpActionReturn r : actionDao.findReturns(actionCode)) {
-            if (r.getTargetField() != null && !r.getTargetField().isEmpty()) out.add(r.getTargetField());
-        }
-        return out;
-    }
+    
 
-    /** 校验接口已注册（多步骤保存时的护栏，报错要说清第几步） */
-    private void checkActionExists(String actionCode, int no) {
-        if (actionDao.findByCode(actionCode) == null) {
-            throw new IllegalArgumentException("第 " + no + " 步选的接口不存在: " + actionCode
-                    + "（请先在「② 接口注册」里注册，或改用已注册的接口）");
-        }
-    }
+    
 
     private String preview(String ruleType, String body) {
         return "package com.example.drools.dynamic;\n\n"
                 + "dialect \"java\"\n\n"
                 + "import com.example.drools.domain.DocFact;\n"
                 + "import com.example.drools.domain.Order;\n\n"
-                + "global com.example.drools.http.HttpActionGateway httpActionGateway;\n"
                 + body;
     }
 

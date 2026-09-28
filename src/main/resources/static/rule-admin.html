@@ -54,7 +54,7 @@
     <a class="pill" style="text-decoration:none" href="rule-admin-dev.html">↗ 接入配置台（研发）</a>
   </div>
   <div class="flow">本页职责：<b>③ 规则类型</b>（研发初始化，运营维护阈值/取值默认值） → <b>④ 规则配置</b>（加规则 / 发布 / 启停 / 删除） → <b>⑤ 试算</b> → <b>⑥ 组合规则表</b>（多条件组合，页面上填表格）<br/>
-    技术侧契约（单据注册 / 接口注册 / 域名 / 密钥引用 / 加解密算法）在「接入配置台」，由研发维护 —— 那边的改动会影响本页所有规则，运营只碰这里的取值。</div>
+    单据注册（单据 → 对象 → 字段，含派生表达式）在「接入配置台」，由研发维护；运营只碰本页的规则取值。引擎只输出决策，外部接口调用由业务系统自行处理。</div>
 </header>
 
 <main>
@@ -343,132 +343,6 @@ async function saveField() {
     await loadDocs();
   } catch (e) { showMsg('msg1', e.message, 'err'); }
 }
-
-/* ================= ② 接口注册 ================= */
-async function loadActions() {
-  actionsCache = await api('rule/http/actions');
-  const groups = {};
-  actionsCache.forEach(a => { const k = a.actionCategory || '未分类'; (groups[k] = groups[k] || []).push(a); });
-  const rows = Object.keys(groups).sort().map(cat =>
-    `<tr><td colspan="4" style="background:#f6f8fa;font-weight:600">【${esc(cat)}】${groups[cat].length} 个接口</td></tr>`
-    + groups[cat].map(a => `
-    <tr>
-      <td>${esc(a.actionName)}<div class="hint">${esc(a.actionCode)}｜单据 ${esc(a.docCode)}｜超时 ${a.timeoutMs}ms</div></td>
-      <td><code>${esc(a.method)} ${esc(a.domainKey)}${esc(a.path)}</code>
-          <div class="hint">入参：${esc(a.bodyTemplate || '')}</div>
-          <div class="hint">认证：${esc(a.authCode || '无')}｜请求加密：${esc(a.reqEncrypt || '无')}｜响应解密：${esc(a.respDecrypt || '无')}｜签名：${esc(a.signType || '无')}${a.signPlace ? '(' + esc(a.signPlace) + ')' : ''}</div></td>
-      <td>${(a.returns || []).map(r => `<div class="hint">${esc(r.respPath)} → ext["${esc(r.targetField)}"] (${esc(r.targetType)})${r.asMessage === 1 ? ' +消息' : ''}</div>`).join('') || '<div class="hint">未配置</div>'}</td>
-      <td><button onclick="testActionByCode('${esc(a.actionCode)}')">试调用</button>
-          <button onclick="fillAction('${esc(a.actionCode)}')">载入表单</button></td>
-    </tr>`).join('')).join('');
-  const listEl = $('action-list');   // 运营侧页面没有接口列表，只借 actionsCache 填下拉
-  if (listEl) {
-    listEl.innerHTML = rows || '<tr><td colspan="4">暂无接口，先在下面新建</td></tr>';
-  }
-  fillSelect('t-action', actionsCache.map(a => [a.actionCode, a.actionName + '（' + a.actionCode + '）']));
-  if ($('auth-list')) await loadAuths();
-}
-function fillAction(actionCode) {
-  const a = actionsCache.find(x => x.actionCode === actionCode);
-  if (!a) return;
-  $('a-code').value = a.actionCode; $('a-name').value = a.actionName; $('a-cat').value = a.actionCategory || '其它';
-  $('a-doc').value = a.docCode || ''; $('a-method').value = a.method; $('a-timeout').value = a.timeoutMs;
-  $('a-domain').value = a.domainKey; $('a-path').value = a.path; $('a-headers').value = a.headersJson || '';
-  $('a-body').value = a.bodyTemplate || ''; $('a-auth').value = a.authCode || '';
-  $('a-reqenc').value = a.reqEncrypt || ''; $('a-respdec').value = a.respDecrypt || '';
-  $('a-sign').value = a.signType || ''; $('a-signplace').value = a.signPlace || 'HEADER';
-  $('a-signfield').value = a.signField || 'X-Sign';
-  $('a-returns').value = (a.returns || []).map(r => `${r.respPath} => ${r.targetField} ${r.targetType}${r.asMessage === 1 ? ' +msg' : ''}`).join('; ');
-  showMsg('msg2', '已载入接口配置到表单（改完点「保存接口」覆盖）', 'ok');
-}
-async function saveAction() {
-  try {
-    const actionCode = $('a-code').value.trim();
-    const returns = $('a-returns').value.split(';').map(s => s.trim()).filter(Boolean).map((line, i) => {
-      const m = line.split('=>');
-      const right = (m[1] || '').trim().split(/\s+/);
-      return { respPath: (m[0] || '').trim(), targetField: right[0], targetType: (right[1] || 'STRING').toUpperCase(), asMessage: line.includes('+msg') ? 1 : 0, sortOrder: i + 1 };
-    });
-    await api('rule/http/action/save', json({
-      actionCode: actionCode, actionName: $('a-name').value.trim(), actionCategory: $('a-cat').value,
-      docCode: $('a-doc').value, method: $('a-method').value, domainKey: $('a-domain').value.trim(),
-      path: $('a-path').value.trim(), headersJson: $('a-headers').value.trim(),
-      bodyTemplate: $('a-body').value, timeoutMs: Number($('a-timeout').value || 2000),
-      authCode: $('a-auth').value, reqEncrypt: $('a-reqenc').value, reqEncryptKeyRef: $('a-reqkey').value.trim(),
-      respDecrypt: $('a-respdec').value, respDecryptKeyRef: $('a-respkey').value.trim(),
-      signType: $('a-sign').value, signKeyRef: $('a-signkey').value.trim(),
-      signPlace: $('a-signplace').value, signField: $('a-signfield').value.trim()
-    }));
-    // 返回值映射单独保存
-    await api('rule/http/action/' + encodeURIComponent(actionCode) + '/returns', json(returns));
-    showMsg('msg2', '接口已保存：' + actionCode + '（' + returns.length + ' 条返回值映射）', 'ok');
-    await loadActions();
-  } catch (e) { showMsg('msg2', e.message, 'err'); }
-}
-async function loadAuths() {
-  authsCache = await api('rule/http/auths');
-  fillSelect('a-auth', [[ '', '（不认证）' ]].concat(authsCache.map(a => [a.authCode, a.authName + '（' + a.authType + '）'])));
-  $('auth-list').innerHTML = authsCache.map(a => {
-    const refs = [];
-    if (a.tokenRef) refs.push('token=' + a.tokenRef);
-    if (a.username) refs.push('user=' + a.username);
-    if (a.passwordRef) refs.push('password=' + a.passwordRef);
-    if (a.headerName) refs.push(a.headerName + '=' + (a.headerValueRef || ''));
-    if (a.jwtSecretRef) refs.push('jwt密钥=' + a.jwtSecretRef + '（iss=' + (a.jwtIssuer || '') + ' aud=' + (a.jwtAudience || '') + ' ttl=' + (a.jwtTtlSeconds || '') + 's）');
-    if (a.oauthTokenPath) refs.push('token接口=' + a.oauthTokenDomainKey + a.oauthTokenPath + ' clientId=' + (a.oauthClientId || '') + ' 密钥=' + (a.oauthClientSecretRef || '') + (a.oauthScope ? ' scope=' + a.oauthScope : ''));
-    return `<tr><td>${esc(a.authName)}<div class="hint">${esc(a.authCode)}</div></td><td>${esc(a.authType)}</td>
-      <td>${refs.map(r => `<div class="hint">${esc(r)}</div>`).join('') || '<div class="hint">-</div>'}</td></tr>`;
-  }).join('') || '<tr><td colspan="3">暂无认证配置</td></tr>';
-}
-async function saveAuth() {
-  try {
-    const type = $('u-type').value;
-    const jwt = ($('u-jwt').value || '').split(',');
-    const oauth = ($('u-oauth').value || '').split(',');
-    const body = { authCode: $('u-code').value.trim(), authName: $('u-name').value.trim(), authType: type };
-    if (type === 'BEARER') body.tokenRef = $('u-ref').value.trim();
-    if (type === 'BASIC') { body.username = $('u-user').value.trim(); body.passwordRef = $('u-ref').value.trim(); }
-    if (type === 'HEADER') { body.headerName = $('u-user').value.trim(); body.headerValueRef = $('u-ref').value.trim(); }
-    if (type === 'JWT_HS256') {
-      body.jwtSecretRef = $('u-ref').value.trim();
-      body.jwtIssuer = (jwt[0] || '').trim(); body.jwtAudience = (jwt[1] || '').trim();
-      body.jwtTtlSeconds = Number((jwt[2] || '300').trim());
-    }
-    if (type === 'OAUTH2_CC') {
-      body.oauthTokenDomainKey = (oauth[0] || '').trim(); body.oauthTokenPath = (oauth[1] || '').trim();
-      body.oauthClientId = (oauth[2] || '').trim(); body.oauthScope = (oauth[3] || '').trim();
-      body.oauthClientSecretRef = $('u-oauthsecret').value.trim();
-    }
-    await api('rule/http/auth/save', json(body));
-    showMsg('msg2', '认证配置已保存：' + body.authCode + '（密钥真值请配到 rule-http.secrets）', 'ok');
-    await loadAuths(); await loadActions();
-  } catch (e) { showMsg('msg2', e.message, 'err'); }
-}
-async function testAction() {
-  if (!actionsCache.length) { showMsg('msg2', '还没有配置任何接口', 'err'); return; }
-  testActionByCode(actionsCache[0].actionCode);
-}
-async function testActionByCode(actionCode) {
-  try {
-    const ctx = buildOrder();
-    const amount = Number($('o-price').value) * Number($('o-qty').value);
-    const body = {
-      orderId: ctx.orderId, totalAmount: amount, discount: 0, shippingFee: 0, finalAmount: amount,
-      rejected: false, customer: ctx.customer, items: ctx.items, ext: {}
-    };
-    const r = await api(`rule/http/action/${encodeURIComponent(actionCode)}/test`, json(body));
-    showMsg('msg2', `接口 ${actionCode} 试调用成功（${r.costMs}ms）\n渲染后的入参：${r.renderedBody}\n回填结果：${JSON.stringify(r.mapped)}`, 'ok');
-    await loadHttpLogs();
-  } catch (e) { showMsg('msg2', e.message, 'err'); }
-}
-async function loadHttpLogs() {
-  try {
-    const logs = await api('rule/http/logs?limit=10');
-    $('http-logs').value = logs.map(l =>
-      `#${l.id} ${l.actionCode} ${l.success ? 'OK' : 'FAIL(' + (l.error || '') + ')'} ${l.costMs}ms\n  URL : ${l.requestUrl}\n  请求: ${l.body || l.requestBody || ''}\n  响应: ${(l.responseBody || '').slice(0, 300)}`).join('\n');
-  } catch (e) { showMsg('msg2', e.message, 'err'); }
-}
-function clearLogs() { $('http-logs').value = ''; }
 
 /* ================= ③ 规则类型 ================= */
 async function loadTypeList() {

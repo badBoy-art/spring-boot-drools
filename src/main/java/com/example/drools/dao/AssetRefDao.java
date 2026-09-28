@@ -14,7 +14,7 @@ import java.util.Set;
  * 资产引用反查：单据（①）和接口（②）都是"一处注册、多处调用"的独立资产，
  * 这个 DAO 回答两件事：
  *   1) 这个单据被哪些规则类型 / 规则 / 组合规则表 / 接口引用？
- *   2) 这个接口被哪些单据 / 规则类型 / 规则 / 组合规则表引用？（适用范围来自 rule_http_action_scope）
+ *   2) 某类资产被哪些单据 / 规则类型 / 规则 / 组合规则表引用？
  * 同时给删除护栏提供"被引用了就别删"的依据。
  *
  * 真实表结构（踩过坑）：单据/接口与规则类型的绑定不是独立列，而是 rule_type_field 里的参数
@@ -47,10 +47,8 @@ public class AssetRefDao {
                 "SELECT rule_name, rule_type, IFNULL(rule_params,'') rule_params, IFNULL(drl_content,'') drl_content, status FROM rule_definition");
         List<Map<String, Object>> tables = jdbc.queryForList(
                 "SELECT asset_key, asset_name, IFNULL(doc_code,'') doc_code, IFNULL(action_json,'') action_json FROM rule_combination_table");
-        List<Map<String, Object>> actions = jdbc.queryForList(
-                "SELECT action_code, action_name, IFNULL(doc_code,'') doc_code FROM rule_http_action ORDER BY action_code");
-        List<Map<String, Object>> scopes = jdbc.queryForList(
-                "SELECT action_code, doc_code FROM rule_http_action_scope");
+        List<Map<String, Object>> actions = new java.util.ArrayList<Map<String, Object>>();
+        List<Map<String, Object>> scopes = new java.util.ArrayList<Map<String, Object>>();
 
         Map<String, Set<String>> scopeByAction = new LinkedHashMap<String, Set<String>>();
         for (Map<String, Object> s : scopes) {
@@ -221,13 +219,6 @@ public class AssetRefDao {
         return str(rule.get("rule_params")).contains("\"docCode\":\"" + doc + "\"")
                 || docTypes.contains(str(rule.get("rule_type")))
                 || str(rule.get("drl_content")).contains("docCode == \"" + doc + "\"");
-    }
-
-    /** 删除护栏用：某接口的引用者清单（null=接口不存在） */
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> actionRefs(String actionCode) {
-        Object item = ((Map<String, Object>) refs().get("actions")).get(actionCode);
-        return item instanceof Map ? (Map<String, Object>) item : null;
     }
 
     /** 删除护栏用：某单据的引用者清单（null=单据不存在） */

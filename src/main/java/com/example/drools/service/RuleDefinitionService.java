@@ -1,7 +1,6 @@
 package com.example.drools.service;
 
 import com.example.drools.dao.RuleDefinitionDao;
-import com.example.drools.dao.RuleHttpActionDao;
 import com.example.drools.dao.RuleTypeMetaDao;
 import com.example.drools.entity.RuleDefinition;
 import com.example.drools.entity.RuleTypeMeta;
@@ -25,17 +24,15 @@ public class RuleDefinitionService {
     private final DrlGenerator generator;
     private final DynamicRuleEngine engine;
     private final RuleParamValidator validator;
-    private final RuleHttpActionDao httpActionDao;
 
     public RuleDefinitionService(RuleDefinitionDao dao, RuleTypeMetaDao metaDao,
                                  DrlGenerator generator, DynamicRuleEngine engine,
-                                 RuleParamValidator validator, RuleHttpActionDao httpActionDao) {
+                                 RuleParamValidator validator) {
         this.dao = dao;
         this.metaDao = metaDao;
         this.generator = generator;
         this.engine = engine;
         this.validator = validator;
-        this.httpActionDao = httpActionDao;
     }
 
     public List<RuleDefinition> list() {
@@ -56,7 +53,6 @@ public class RuleDefinitionService {
             throw new IllegalArgumentException("未知规则类型: " + req.getRuleType());
         }
         validator.validate(req.getRuleType(), req.getRuleParams()); // 参数校验
-        validateActionCode(req.getRuleType(), req.getRuleParams()); // 引用 HTTP 动作时校验动作存在
         // 建草稿时就先拦"条件重复"：否则草稿建出来了、发布时才被拒，库里会留一堆永远发不出去的废草稿
         checkDuplicateCondition(req, req.getRuleParams());
         String drl = generator.generate(req.getRuleType(), req.getRuleName(), req.getRuleParams());
@@ -79,7 +75,6 @@ public class RuleDefinitionService {
             throw new IllegalArgumentException("规则不存在: " + id);
         }
         validator.validate(r.getRuleType(), ruleParamsJson); // 参数校验
-        validateActionCode(r.getRuleType(), ruleParamsJson); // 引用的接口（含步骤链的 stepNAction）必须在册
         checkDuplicateCondition(r, ruleParamsJson); // 重复条件拦截
         String drl = generator.generate(r.getRuleType(), r.getRuleName(), ruleParamsJson);
         engine.validate(drl); // 试编译
@@ -124,40 +119,6 @@ public class RuleDefinitionService {
      * 规则参数里带 actionCode 时（调用 HTTP 接口类规则），校验动作已配置且启用 ——
      * 免得规则发布成功、运行期调用时才报"动作不存在"。
      */
-    private void validateActionCode(String ruleType, String ruleParamsJson) {
-        if (ruleParamsJson == null || ruleParamsJson.trim().isEmpty()) {
-            return;
-        }
-        try {
-            com.fasterxml.jackson.databind.JsonNode node = MAPPER.readTree(ruleParamsJson);
-            // 逐一看所有"动作码"参数：经典约定的 actionCode，以及步骤链的 stepNAction（每一步调哪个接口）
-            java.util.List<String> codes = new java.util.ArrayList<String>();
-            com.fasterxml.jackson.databind.JsonNode classic = node.get("actionCode");
-            if (classic != null && !classic.asText().trim().isEmpty()) {
-                codes.add(classic.asText().trim());
-            }
-            java.util.Iterator<String> names = node.fieldNames();
-            while (names.hasNext()) {
-                String k = names.next();
-                if (k.matches("step\\d+Action")) {
-                    String v = node.get(k).asText().trim();
-                    if (!v.isEmpty()) codes.add(v);
-                }
-            }
-            for (String code : codes) {
-                com.example.drools.entity.RuleHttpAction action = httpActionDao.findByCode(code);
-                if (action == null) {
-                    throw new IllegalArgumentException("规则类型[" + ruleType + "]引用的接口动作不存在: " + code
-                            + "（请先在「② 接口注册」里注册，或把这一步的接口换成已注册的）");
-                }
-                if (action.getStatus() != null && action.getStatus() != 1) {
-                    throw new IllegalArgumentException("接口动作已停用: " + code);
-                }
-            }
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            // 参数 JSON 非法的问题交给 RuleParamValidator 报更准确的信息
-        }
-    }
 
     /** 启用 / 禁用（status: 1 启用 / 2 禁用） */
     public void changeStatus(Long id, int status) {

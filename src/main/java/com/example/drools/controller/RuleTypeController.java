@@ -1,7 +1,6 @@
 package com.example.drools.controller;
 
 import com.example.drools.dao.RuleDocumentDao;
-import com.example.drools.dao.RuleHttpActionDao;
 import com.example.drools.dao.RuleStepDao;
 import com.example.drools.dao.RuleTypeMetaDao;
 import com.example.drools.entity.RuleTypeField;
@@ -36,157 +35,17 @@ public class RuleTypeController {
 
     private final RuleTypeMetaDao metaDao;
     private final RuleDocumentDao documentDao;
-    private final RuleHttpActionDao actionDao;
     private final RuleTypeBuilder builder;
     private final RuleStepBuilder stepBuilder;
     private final RuleStepDao stepDao;
-    private final com.example.drools.http.HttpActionGateway httpActionGateway;
 
-    public RuleTypeController(RuleTypeMetaDao metaDao, RuleDocumentDao documentDao, RuleHttpActionDao actionDao,
-                              RuleTypeBuilder builder, RuleStepBuilder stepBuilder, RuleStepDao stepDao,
-                              com.example.drools.http.HttpActionGateway httpActionGateway) {
+    public RuleTypeController(RuleTypeMetaDao metaDao, RuleDocumentDao documentDao,
+                              RuleTypeBuilder builder, RuleStepBuilder stepBuilder, RuleStepDao stepDao) {
         this.metaDao = metaDao;
         this.documentDao = documentDao;
-        this.actionDao = actionDao;
         this.builder = builder;
         this.stepBuilder = stepBuilder;
         this.stepDao = stepDao;
-        this.httpActionGateway = httpActionGateway;
-    }
-
-    /**
-     * 单步试算：只跑指定的一步，直接看到「渲染后的入参 / 接口返回 / 回填进上下文的键值」，
-     * 用来在配规则时确认"这一步能不能通、返回值有没有进 ext、下一步能引用什么"。
-     * body: {"ruleType":"X","stepNo":1,"factClass":"DocFact|Order","docCode":"SKU","fact":{...}}
-     */
-    @PostMapping("/step/test")
-    public Map<String, Object> testStep(@RequestBody Map<String, Object> body) {
-        String ruleType = str(body.get("ruleType"));
-        int stepNo = body.get("stepNo") == null ? 1 : Integer.parseInt(str(body.get("stepNo")));
-        String factClass = str(body.get("factClass"));
-        String docCode = str(body.get("docCode"));
-        List<com.example.drools.entity.RuleStep> steps = stepDao.findByType(ruleType);
-        com.example.drools.entity.RuleStep step = null;
-        for (com.example.drools.entity.RuleStep s : steps) {
-            if (s.getStepNo() != null && s.getStepNo() == stepNo) step = s;
-        }
-        if (step == null) {
-            throw new IllegalArgumentException("找不到第 " + stepNo + " 步（类型 " + ruleType + "）");
-        }
-        @SuppressWarnings("unchecked")
-        Map<String, Object> factMap = body.get("fact") instanceof Map
-                ? (Map<String, Object>) body.get("fact") : new LinkedHashMap<String, Object>();
-
-        // 事实类型：请求没给就从类型模板推断（模板里出现 "$o : Order(" 就是订单事实）
-        if (factClass.isEmpty()) {
-            String tpl = metaDao.findTemplate(ruleType);
-            factClass = (tpl != null && tpl.contains("$o : Order(")) ? "Order" : "DocFact";
-        }
-        // 构造事实：Order 走真实领域对象；其余走通用单据 DocFact
-        Object fact;
-        if ("Order".equalsIgnoreCase(factClass)) {
-            fact = new com.fasterxml.jackson.databind.ObjectMapper().convertValue(factMap, com.example.drools.domain.Order.class);
-        } else {
-            com.example.drools.domain.DocFact docFact = new com.example.drools.domain.DocFact(docCode, factMap);
-            docFact.setBizId(str(factMap.get("bizId")));
-            fact = docFact;
-        }
-
-        Map<String, Object> out = new LinkedHashMap<String, Object>();
-        out.put("stepNo", stepNo);
-        out.put("stepName", step.getStepName());
-        out.put("actionType", step.getActionType());
-        out.put("actionCode", step.getActionCode());
-        out.put("paramJson", step.getParamJson());
-
-        // 本步条件是否满足（只做展示：拿事实里的字段跟条件取值比一比）
-        out.put("cond", checkCond(step, factMap));
-
-        if (!"CALL".equals(step.getActionType())) {
-            out.put("message", "这一步不调接口（" + step.getActionType() + "），试算请用「规则类型详情 → 试算」整条链路跑");
-            return out;
-        }
-        Map<String, Object> result = httpActionGateway.invoke(step.getActionCode(), fact, step.getParamJson());
-        out.putAll(result);
-        // 从调用日志里取这次请求的真实入参/响应/耗时（试算面板要用）
-        List<com.example.drools.entity.RuleHttpCallLog> logs = actionDao.findLogs(1);
-        if (!logs.isEmpty()) {
-            com.example.drools.entity.RuleHttpCallLog last = logs.get(0);
-            out.put("requestUrl", last.getRequestUrl());
-            out.put("renderedBody", last.getRequestBody());
-            out.put("responseBody", last.getResponseBody());
-            out.put("success", last.getSuccess());
-            out.put("costMs", last.getCostMs());
-        }
-        if (fact instanceof com.example.drools.domain.DocFact) {
-            com.example.drools.domain.DocFact d = (com.example.drools.domain.DocFact) fact;
-            out.put("ext", d.getExt());
-            out.put("messages", d.getMessages());
-        } else if (fact instanceof com.example.drools.domain.Order) {
-            com.example.drools.domain.Order o = (com.example.drools.domain.Order) fact;
-            out.put("ext", o.getExt());
-            out.put("messages", o.getMessages());
-        }
-        return out;
-    }
-
-    /** 简单条件展示：字段路径 + 运算符 + 期望值 vs 事实里的实际值 */
-    private Map<String, Object> checkCond(com.example.drools.entity.RuleStep step, Map<String, Object> factMap) {
-        Map<String, Object> cond = new LinkedHashMap<String, Object>();
-        if (step.getCondField() == null || step.getCondField().trim().isEmpty()) {
-            cond.put("note", "本步无条件，任何单据都执行");
-            return cond;
-        }
-        Object actual = readPath(factMap, step.getCondField());
-        cond.put("field", step.getCondField());
-        cond.put("op", step.getCondOp());
-        cond.put("expect", step.getCondValue());
-        cond.put("actual", actual);
-        boolean pass = true;
-        if (actual instanceof Number && step.getCondValue() != null && step.getCondValue().matches("-?\\d+(\\.\\d+)?")) {
-            double a = ((Number) actual).doubleValue();
-            double b = Double.parseDouble(step.getCondValue());
-            String op = step.getCondOp() == null ? "==" : step.getCondOp();
-            if (">=".equals(op)) pass = a >= b;
-            else if (">".equals(op)) pass = a > b;
-            else if ("<=".equals(op)) pass = a <= b;
-            else if ("<".equals(op)) pass = a < b;
-            else if ("==".equals(op)) pass = a == b;
-            else if ("!=".equals(op)) pass = a != b;
-        } else if (actual == null) {
-            pass = false;   // 字段没值 → 条件不成立
-        }
-        cond.put("pass", pass);
-        return cond;
-    }
-
-    /** 取值转字符串（null 安全） */
-    private String str(Object o) {
-        return o == null ? "" : String.valueOf(o).trim();
-    }
-
-    /** 点号/下标路径取值 */
-    @SuppressWarnings("unchecked")
-    private Object readPath(Map<String, Object> map, String path) {
-        String[] parts = path.split("\\.");
-        Object cur = map;
-        for (String p : parts) {
-            String idx = null;
-            int lb = p.indexOf('[');
-            if (lb > 0) {
-                idx = p.substring(lb + 1, p.indexOf(']'));
-                p = p.substring(0, lb);
-            }
-            if (!(cur instanceof Map)) return null;
-            cur = ((Map<String, Object>) cur).get(p);
-            if (idx != null) {
-                if (!(cur instanceof List)) return null;
-                List<Object> list = (List<Object>) cur;
-                int i = Integer.parseInt(idx);
-                cur = i < list.size() ? list.get(i) : null;
-            }
-        }
-        return cur;
     }
 
     /** 全部规则类型（含参数定义与模板体，页面列表/编辑用） */
@@ -363,7 +222,7 @@ public class RuleTypeController {
         String actionCode = request.get("actionCode") == null ? null : String.valueOf(request.get("actionCode"));
         String mode = request.get("mode") == null ? "ACTION" : String.valueOf(request.get("mode"));
         if ("ACTION".equalsIgnoreCase(mode) && actionCode != null && !actionCode.trim().isEmpty()
-                && actionDao.findByCode(actionCode) == null) {
+                && false) {
             throw new IllegalArgumentException("接口动作未注册: " + actionCode + "（请先在「② 接口注册」里登记）");
         }
     }

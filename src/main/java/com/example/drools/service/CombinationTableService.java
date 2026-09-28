@@ -2,7 +2,6 @@ package com.example.drools.service;
 
 import com.example.drools.dao.RuleCombinationTableDao;
 import com.example.drools.dao.RuleDocumentDao;
-import com.example.drools.dao.RuleHttpActionDao;
 import com.example.drools.entity.RuleCombinationTable;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -52,14 +51,12 @@ public class CombinationTableService {
 
     private final RuleCombinationTableDao dao;
     private final RuleDocumentDao documentDao;
-    private final RuleHttpActionDao actionDao;
     private final DynamicRuleEngine engine;
 
     public CombinationTableService(RuleCombinationTableDao dao, RuleDocumentDao documentDao,
-                                   RuleHttpActionDao actionDao, DynamicRuleEngine engine) {
+                                   DynamicRuleEngine engine) {
         this.dao = dao;
         this.documentDao = documentDao;
-        this.actionDao = actionDao;
         this.engine = engine;
     }
 
@@ -136,12 +133,7 @@ public class CombinationTableService {
                 errors.add(error(0, "动作", "「" + factClass + "」可用的动作只有 " + allowed));
             }
             if ("HTTP_ACTION".equals(actionType)) {
-                String actionCode = text(action, "actionCode");
-                if (actionCode == null || actionCode.trim().isEmpty()) {
-                    errors.add(error(0, "动作·接口", "调接口动作必须选接口"));
-                } else if (actionDao.findByCode(actionCode) == null) {
-                    errors.add(error(0, "动作·接口", "接口未注册: " + actionCode + "（先去「② 接口注册」登记）"));
-                }
+                errors.add(error(0, "动作·接口", "「调接口」动作已移除：调接口由业务系统处理，请改用 写字段/打标/加消息"));
             }
         }
 
@@ -232,7 +224,6 @@ public class CombinationTableService {
         drl.append("import com.example.drools.domain.OrderItem;\n");
         drl.append("import com.example.drools.domain.Product;\n");
         drl.append("import com.example.drools.domain.DocFact;\n\n");
-        drl.append("global com.example.drools.http.HttpActionGateway httpActionGateway;\n\n");
 
         boolean orderFact = !"DocFact".equals(factClass);
         boolean hasItem = false;
@@ -381,12 +372,6 @@ public class CombinationTableService {
                 if (!valueLiteral.isEmpty()) {
                     lines.add(fact + (orderFact ? ".addMessage" : ".addRuleMessage") + "(\"" + valueLiteral + "\");");
                 }
-                break;
-            case "HTTP_ACTION":
-                lines.add("httpActionGateway.invoke(\"" + text(action, "actionCode") + "\", " + fact + ");");
-                lines.add("update(" + fact + ");");
-                lines.add(fact + (orderFact ? ".addMessage" : ".addRuleMessage")
-                        + "(\"命中组合规则，已调用接口 " + text(action, "actionCode") + "\");");
                 break;
             default:
                 lines.add("// 未知动作类型: " + type);

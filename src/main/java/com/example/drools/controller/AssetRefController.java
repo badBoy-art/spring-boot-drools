@@ -41,14 +41,6 @@ public class AssetRefController {
     }
 
     /** 某个接口的引用清单（适用范围 / 被哪些单据 / 哪些规则引用） */
-    @GetMapping("/refs/action/{actionCode}")
-    public ResponseEntity<?> actionRefs(@PathVariable String actionCode) {
-        Map<String, Object> item = refDao.actionRefs(actionCode);
-        if (item == null) return ResponseEntity.badRequest().body(err("接口不存在: " + actionCode));
-        return ResponseEntity.ok(item);
-    }
-
-    /** 某个单据的引用清单（被哪些规则类型 / 规则 / 组合表 / 接口引用） */
     @GetMapping("/refs/doc/{docCode}")
     public ResponseEntity<?> docRefs(@PathVariable String docCode) {
         Map<String, Object> item = refDao.docRefs(docCode);
@@ -56,22 +48,7 @@ public class AssetRefController {
         return ResponseEntity.ok(item);
     }
 
-    /** 删除接口：被引用则拒绝（409），并把引用者列清楚 */
-    @DeleteMapping("/http/action/{actionCode}")
-    public ResponseEntity<?> deleteAction(@PathVariable String actionCode) {
-        Map<String, Object> ref = refDao.actionRefs(actionCode);
-        if (ref == null) return ResponseEntity.badRequest().body(err("接口不存在: " + actionCode));
-        String blockers = describe(ref, "types", "rules", "tables");
-        if (!blockers.isEmpty()) {
-            return ResponseEntity.status(409).body(err("接口 " + actionCode + " 正被引用，不能删除：" + blockers
-                    + "（这是「一处注册、多处调用」的正常状态：先把引用它的规则/类型改掉或删掉，再回来删接口）"));
-        }
-        jdbc.update("DELETE FROM rule_http_action_return WHERE action_code = ?", actionCode);
-        jdbc.update("DELETE FROM rule_http_action_scope WHERE action_code = ?", actionCode);
-        jdbc.update("DELETE FROM rule_http_action WHERE action_code = ?", actionCode);
-        engine.refresh();
-        return ResponseEntity.ok(ok("接口 " + actionCode + " 已删除（未被任何规则引用）"));
-    }
+    /** 接口注册功能已移除（调接口由业务系统处理），这里只保留一个明确的报错 */
 
     /** 删除单据：被引用则拒绝（409）；未被引用时连带删掉它的对象/字段 */
     @DeleteMapping("/doc/{docCode}")

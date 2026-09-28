@@ -4,7 +4,6 @@ import com.example.drools.dao.RuleCombinationTableDao;
 import com.example.drools.dao.RuleDefinitionDao;
 import com.example.drools.entity.RuleCombinationTable;
 import com.example.drools.entity.RuleDefinition;
-import com.example.drools.http.HttpActionGateway;
 import org.kie.api.KieBase;
 import org.kie.api.KieServices;
 import org.kie.api.builder.KieBuilder;
@@ -39,8 +38,7 @@ public class DynamicRuleEngine implements InitializingBean {
     private final RuleDefinitionDao ruleDefinitionDao;
     private final RuleCombinationTableDao combinationTableDao;
     private final DrlGenerator drlGenerator;
-    /** 规则 RHS 里要用的动作网关（HTTP 调用）：以 Drools global 的形式注入每个会话 */
-    private final HttpActionGateway httpActionGateway;
+
 
     private volatile KieContainer kieContainer;
     private volatile KieBase kieBase;
@@ -50,11 +48,10 @@ public class DynamicRuleEngine implements InitializingBean {
 
     public DynamicRuleEngine(RuleDefinitionDao ruleDefinitionDao,
                              RuleCombinationTableDao combinationTableDao,
-                             DrlGenerator drlGenerator, HttpActionGateway httpActionGateway) {
+                             DrlGenerator drlGenerator) {
         this.ruleDefinitionDao = ruleDefinitionDao;
         this.combinationTableDao = combinationTableDao;
         this.drlGenerator = drlGenerator;
-        this.httpActionGateway = httpActionGateway;
     }
 
     @Override
@@ -164,7 +161,6 @@ public class DynamicRuleEngine implements InitializingBean {
         KieSession session = base.newKieSession();
         // 规则里声明的 global 必须在每个会话上赋值，否则用到它的规则一执行就 NPE。
         // 这里注入的是 HTTP 动作网关 —— 规则因此可以按配置调用任意 HTTP 接口。
-        session.setGlobal("httpActionGateway", httpActionGateway);
         return session;
     }
 

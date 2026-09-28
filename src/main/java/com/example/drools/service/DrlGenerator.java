@@ -34,11 +34,7 @@ public class DrlGenerator {
             "import com.example.drools.domain.OrderItem;\n" +
             "import com.example.drools.domain.Product;\n" +
             "import com.example.drools.domain.Customer;\n" +
-            "import com.example.drools.domain.DocFact;\n\n" +
-            // 规则要做"动作"（调 HTTP 接口）时，把 Spring 容器里的网关当 global 注入：
-            // 模板里直接写 httpActionGateway.invoke("RISK_CHECK", $o); 即可 —— 接口地址/入参/返回值全在库里配。
-            // global 由 DynamicRuleEngine.newKieSession() 在每个会话上 setGlobal，规则文件里只是声明。
-            "global com.example.drools.http.HttpActionGateway httpActionGateway;\n\n";
+            "import com.example.drools.domain.DocFact;\n\n";
 
     private final RuleTemplateDao templateDao;
     private final RuleTypeMetaDao metaDao;
