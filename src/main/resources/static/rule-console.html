@@ -109,12 +109,60 @@ const del  = p => api(p, {method:'DELETE'});
 const msg = (el, text, kind) => { const n = $(el); if (!n) return; n.className = 'msg show ' + (kind||'ok'); n.textContent = text; };
 let DOCS = [], ACTIONS = [], TYPES = [], RULES = [], REFS = {docs:{}, actions:{}}, CATEGORIES = [], DOMAINS = {currentEnv:'dev', domains:[]};
 
+/* ============ 语法清单：运算符/类型下拉都来自后端 DrlSyntax（不在前端另写一份） ============ */
+let SYNTAX = {operators: {}, types: {}, valueHint: {}};
+function opOptions(cur) {
+  const names = {'==':1,'!=':1,'>':1,'>=':1,'<':1,'<=':1};
+  const groups = [['比较', []], ['空值 / 集合', []], ['字符串', []], ['便利（自动转正则）', []]];
+  Object.keys(SYNTAX.operators || {}).forEach(k => {
+    const label = SYNTAX.operators[k];
+    const g = names[k] ? 0 : (k.indexOf('null') >= 0 || k.indexOf('in') >= 0 || k.indexOf('memberOf') >= 0 ? 1 : (k.indexOf('match') >= 0 || k === 'contains' || k === 'not contains' || k === 'soundslike' ? 2 : 3));
+    groups[g][1].push([k, label]);
+  });
+  return groups.filter(g => g[1].length).map(g =>
+    `<optgroup label="${esc(g[0])}">` + g[1].map(([k, label]) =>
+      `<option value="${esc(k)}"${k === cur ? ' selected' : ''}>${esc(k)} · ${esc(label)}</option>`).join('') + '</optgroup>').join('');
+}
+function typeOptions(cur) {
+  let out = '';
+  for (const k in (SYNTAX.types || {})) {
+    const v = SYNTAX.types[k];
+    if (v.indexOf('等同') >= 0 || v.indexOf('同 ') >= 0) { continue; }   // NUMBER/LIST 兼容别名不占位
+    out += `<option value="${esc(k)}"${k === cur ? ' selected' : ''}>${esc(k)} · ${esc(v)}</option>`;
+  }
+  return out;
+}
+function valueHint(op) {
+  return (SYNTAX.valueHint || {})[op] || '按运算符填取值；写 ${参数名} 表示"这条规则的参数"';
+}
+function allFieldOptions(selectedCsv) {
+  const sel = (selectedCsv || '').split(',').map(s => s.trim());
+  let out = '';
+  const walk = (ns, dn) => (ns || []).forEach(o => {
+    (o.fields || []).forEach(f => {
+      out += `<option value="${esc(f.fieldKey)}"${sel.indexOf(f.fieldKey) >= 0 ? ' selected="selected"' : ''}>${esc(dn)} · ${esc(f.fieldName)} (${esc(f.fieldKey)})</option>`;
+    });
+    walk(o.children, dn);
+  });
+  DOCS.forEach(d => walk(d.tree, d.docName));
+  return out;
+}
+async function saveTypeOutputs(ruleType) {
+  const sel = $('td-outputs');
+  const vals = sel ? Array.from(sel.selectedOptions).map(o => o.value) : [];
+  try {
+    const r = await post('rule/type/outputs', {ruleType: ruleType, outputFields: vals});
+    msg('msg-typeout', r.message, 'ok');
+    TYPES = await api('rule/type/list');
+  } catch (e) { msg('msg-typeout', e.message, 'err'); }
+}
 async function loadCommon() {
-  const [d, t, r, info, refs] = await Promise.all([
+  const [d, t, r, info, refs, syn] = await Promise.all([
     api('rule/doc/tree'), api('rule/type/list'),
-    api('rule/list'), api('rule/engine/info'), api('rule/refs')
+    api('rule/list'), api('rule/engine/info'), api('rule/refs'),
+    api('rule/type/syntax')
   ]);
-  DOCS = d; TYPES = t; RULES = r; REFS = refs;
+  DOCS = d; TYPES = t; RULES = r; REFS = refs; SYNTAX = syn;
   $('st-rules').textContent = info.ruleCount;
   $('st-pub').textContent = info.publishedRuleCount;
 }
@@ -160,6 +208,10 @@ function docDetail(code) {
       `<div class="kv">
          <div class="k">单据编码</div><div><code>${esc(d.docCode)}</code></div>
          <div class="k">说明</div><div>${esc(d.remark || '-')}</div>
+         <div class="k">派生字段（多字段表达式）</div><div>
+           ${(function(){ const out=[]; const walk=(ns)=>(ns||[]).forEach(o=>{ (o.fields||[]).forEach(f=>{ if (f.expr) out.push('<span class="tag b">' + esc(f.fieldName) + ' = ' + esc(f.expr) + '</span>'); }); walk(o.children); }); walk(d.tree);
+             return out.join(' ') || '<span class="sub">暂无：给字段填「计算表达式」即成为派生字段（如 毛利率 = (售价 - 成本) / 成本；可引用其它字段的中文名或 fieldKey，也可以引用另一个派生字段，引擎按依赖顺序算）</span>'; })()}
+         </div>
          <div class="k">字段总数</div><div>${d.fieldCount} 个</div>
          <div class="k">被引用</div><div>${refBadge('doc', code)}</div>
        </div>
@@ -268,11 +320,17 @@ function typeDetail(code) {
         <button class="ghost" onclick="delRule(${r.id})">删除</button>
       </td></tr>`).join('');
   return `<div class="crumb"><a href="#/types">规则类型</a> / ${esc(t.typeName)}</div>` +
-    card(`${esc(t.typeName)} <code>${esc(t.ruleType)}</code>`, stepType ? '步骤链：每一步判断/调接口/写字段，前一步接口回填的值（ext）可直接被后面步骤引用' : '单条件单动作类型',
+    card(`${esc(t.typeName)} <code>${esc(t.ruleType)}</code>`, stepType ? '步骤链：一步一个条件 + 一个动作（写单据字段）；前一步写入的字段（ext）可被后面步骤直接引用' : '单条件单动作类型',
       `<button onclick="toggleNew('new-rule')">+ 新建规则</button>`,
       `<div class="kv">
          <div class="k">分组</div><div>${esc(t.ruleGroup||'-')}</div>
          <div class="k">内置/自定义</div><div>${t.builtin ? '内置（系统维护）' : '自定义'}</div>
+         <div class="k">决策输出字段</div><div>
+           <select id="td-outputs" multiple size="4" style="max-width:460px">${allFieldOptions(t.outputFields)}</select>
+           <button style="margin-left:8px" onclick="saveTypeOutputs('${esc(t.ruleType)}')">保存决策输出字段</button>
+           <div class="sub">在这里注册的字段会出现在评估响应的 <code>decision</code> 里（业务方的决策契约）；与①单据注册里勾选的字段取并集</div>
+           <div id="msg-typeout"></div>
+         </div>
          <div class="k">参数</div><div>${(t.fields||[]).map(f => `<span class="tag b">${esc(f.fieldName)} <code>${esc(f.fieldKey)}</code>${f.defaultValue ? ' 默认=' + esc(f.defaultValue) : ''}</span>`).join(' ') || '-'}</div>
        </div>${stepPanel}
        <div id="new-rule" style="display:none" class="stepcard" style="margin-top:14px">
@@ -410,10 +468,12 @@ function renderSteps() {
       <div id="st-${i}" style="display:none"></div>
       <div class="grid">
         <div><label>条件字段（留空=本步无条件）</label><select onchange="setStep(${i},'condField',this.value)">${docFieldOptions(doc, s.condField)}</select></div>
-        <div><label>运算符</label><select onchange="setStep(${i},'condOp',this.value)">${['>','>=','<','<=','==','!='].map(o => `<option${o === s.condOp ? ' selected' : ''}>${o}</option>`).join('')}</select></div>
+        <div><label>运算符（共 ${Object.keys(SYNTAX.operators || {}).length} 种）</label>
+          <select title="${esc(valueHint(s.condOp))}" onchange="setStep(${i},'condOp',this.value)">${opOptions(s.condOp)}</select>
+          <div class="sub">${esc(valueHint(s.condOp))}</div></div>
         <div><label>取值类型 / 取值（取值是该步的参数，可在规则里改）</label>
           <div style="display:flex;gap:8px"><select onchange="setStep(${i},'condType',this.value)" style="max-width:110px">
-            ${['NUMBER','ENUM','STRING'].map(o => `<option${o === s.condType ? ' selected' : ''}>${o}</option>`).join('')}</select>
+            ${typeOptions(s.condType)}</select>
             <input value="${esc(s.condValue)}" oninput="setStep(${i},'condValue',this.value)" placeholder="0.30"/></div></div>
         <div><label>这一步做什么</label><select onchange="setStep(${i},'actionType',this.value)">
           ${ACTION_KINDS.map(([v,l]) => `<option value="${v}"${v === s.actionType ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -504,7 +564,7 @@ async function loadStepPanel(code) {
     if (!steps.length) { box.innerHTML = ''; return; }
     const t = TYPES.find(x => x.ruleType === code) || {};
     let html = `<div class="stepbar" style="margin-top:18px"><span class="stepno" style="background:#0f172a">≡</span><b>步骤链</b><span class="sub">按序号执行</span>
-      <span style="margin-left:auto" class="sub">每步：条件 → 动作（是否调接口/调哪个接口）→ 回填 ext → 后续步骤可引用</span></div>`;
+      <span style="margin-left:auto" class="sub">每步：条件 → 动作（写单据字段）→ 后续步骤可直接引用前一步写入的字段</span></div>`;
     for (const s of steps) {
       const kind = {CALL:'调接口', SET_EXT:'写单据字段', MARK:'打标', MSG:'只加消息'}[s.actionType] || s.actionType;
       const a = ACTIONS.find(x => x.actionCode === s.actionCode);

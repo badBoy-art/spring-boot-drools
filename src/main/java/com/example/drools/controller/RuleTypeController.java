@@ -58,6 +58,67 @@ public class RuleTypeController {
         return result;
     }
 
+    /** 语法清单：页面下拉的【运算符 + 取值类型】全部来自 DrlSyntax（单一真源，不在前端重写一份） */
+    @GetMapping("/syntax")
+    public Map<String, Object> syntax() {
+        Map<String, Object> out = new java.util.LinkedHashMap<String, Object>();
+        out.put("operators", com.example.drools.service.DrlSyntax.operators());
+        out.put("types", com.example.drools.service.DrlSyntax.types());
+        out.put("valueHint", valueHints());
+        return out;
+    }
+
+    /** 每种运算符对"取值"的填法提示（页面输入框旁边显示） */
+    private Map<String, String> valueHints() {
+        Map<String, String> hints = new java.util.LinkedHashMap<String, String>();
+        hints.put("in", "逗号分隔，如 服装,数码");
+        hints.put("not in", "逗号分隔，如 服装,数码");
+        hints.put("memberOf", "集合表达式，如 ${ext.allowedRegions}");
+        hints.put("not memberOf", "集合表达式");
+        hints.put("matches", "Java 正则可写，如 ^SKU.*");
+        hints.put("not matches", "Java 正则");
+        hints.put("startsWith", "前缀文本，如 SKU");
+        hints.put("endsWith", "后缀文本，如 .pdf");
+        hints.put("== null", "（不需要填）");
+        hints.put("!= null", "（不需要填）");
+        return hints;
+    }
+
+    /** 只更新「本类型输出的决策字段」（不重建类型/规则，供类型详情页直接用） */
+    @PostMapping("/outputs")
+    public Map<String, Object> saveOutputs(@RequestBody Map<String, Object> body) {
+        String ruleType = str(body.get("ruleType"));
+        if (ruleType.isEmpty()) {
+            throw new IllegalArgumentException("ruleType 必填");
+        }
+        RuleTypeMeta meta = metaDao.findByType(ruleType);
+        if (meta == null) {
+            throw new IllegalArgumentException("规则类型不存在: " + ruleType);
+        }
+        Object outputs = body.get("outputFields");
+        StringBuilder sb = new StringBuilder();
+        if (outputs instanceof java.util.Collection) {
+            for (Object item : (java.util.Collection<?>) outputs) {
+                if (item == null || String.valueOf(item).trim().isEmpty()) {
+                    continue;
+                }
+                if (sb.length() > 0) {
+                    sb.append(",");
+                }
+                sb.append(String.valueOf(item).trim());
+            }
+        } else if (outputs != null) {
+            sb.append(String.valueOf(outputs).trim());
+        }
+        meta.setOutputFields(sb.length() == 0 ? null : sb.toString());
+        metaDao.upsertMeta(meta);
+        Map<String, Object> out = new java.util.LinkedHashMap<String, Object>();
+        out.put("ruleType", ruleType);
+        out.put("outputFields", meta.getOutputFields());
+        out.put("message", "已保存本类型输出的决策字段" + (meta.getOutputFields() == null ? "（空）" : "：" + meta.getOutputFields()));
+        return out;
+    }
+
     /** 单个类型详情 */
     @GetMapping("/detail")
     public Map<String, Object> detail(@RequestParam String ruleType) {
@@ -82,6 +143,11 @@ public class RuleTypeController {
         out.put("ruleType", ruleType);
         out.put("steps", stepDao.findByType(ruleType));
         return out;
+    }
+
+    /** 取值转字符串（null 安全） */
+    private String str(Object o) {
+        return o == null ? "" : String.valueOf(o).trim();
     }
 
     /** 多步骤模式：把类型级元数据补齐（RuleStepBuilder 只负责 steps/字段/模板） */
