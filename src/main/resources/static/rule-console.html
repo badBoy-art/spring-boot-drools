@@ -136,16 +136,46 @@ function valueHint(op) {
   return (SYNTAX.valueHint || {})[op] || '按运算符填取值；写 ${参数名} 表示"这条规则的参数"';
 }
 function allFieldOptions(selectedCsv) {
-  const sel = (selectedCsv || '').split(',').map(s => s.trim());
+  const sel = (selectedCsv || '').split(',').map(s => s.trim()).filter(Boolean);
+  const seen = {};
   let out = '';
   const walk = (ns, dn) => (ns || []).forEach(o => {
     (o.fields || []).forEach(f => {
-      out += `<option value="${esc(f.fieldKey)}"${sel.indexOf(f.fieldKey) >= 0 ? ' selected="selected"' : ''}>${esc(dn)} · ${esc(f.fieldName)} (${esc(f.fieldKey)})</option>`;
+      seen[f.fieldKey] = true;
+      const on = sel.indexOf(f.fieldKey) >= 0;
+      out += `<option value="${esc(f.fieldKey)}"${on ? ' selected="selected"' : ''}>${esc(dn)} · ${esc(f.fieldName)} (${esc(f.fieldKey)})${on ? '' : ''}</option>`;
     });
     walk(o.children, dn);
   });
   DOCS.forEach(d => walk(d.tree, d.docName));
+  // 已注册但不在单据字段树里的"决策位"（如 instantid / codeHit）必须也渲染出来，
+  // 否则页面上看不见 → 一保存就被丢掉（实测踩到：库里三个字段，页面只显示一个）
+  sel.forEach(k => {
+    if (!seen[k]) {
+      out += `<option value="${esc(k)}" selected="selected">${esc(k)}（自定义决策位：不在①单据注册的字段树里）</option>`;
+    }
+  });
   return out;
+}
+/** 手填一个决策位并选中（用于 instantid 这类不在字段树里的输出） */
+function addOutputKey() {
+  const s = $('td-outputs') || $('t-outputs');
+  const inp = $('td-outputs-new') || $('t-outputs-new');
+  if (!s || !inp) return;
+  const k = (inp.value || '').trim();
+  if (!k) return;
+  const hit = Array.from(s.options).find(o => o.value === k);
+  if (hit) {
+    hit.selected = true;
+  } else {
+    const o = document.createElement('option');
+    o.value = k;
+    o.textContent = k + '（自定义决策位）';
+    o.selected = true;
+    s.appendChild(o);
+  }
+  inp.value = '';
+  updateOutputPreview();
 }
 async function saveTypeOutputs(ruleType) {
   const sel = $('td-outputs');
@@ -296,13 +326,56 @@ function typesList() {
       <td>${stepType ? '<span class="tag b">步骤链</span>' : '<span class="tag">单条件</span>'}
           <div class="sub">${(t.fields||[]).length} 个参数</div></td>
       <td>${n} 条规则${t.builtin ? ' <span class="tag">内置</span>' : ''}</td>
+      <td>${(() => { const c = (t.outputFields || '').split(',').map(s => s.trim()).filter(Boolean); return c.length ? c.map(k => `<span class="tag b">${esc(k)}</span>`).join(' ') : '<span class="tag w">未注册</span><div class="sub">点进详情 →「返回结果结构」注册</div>'; })()}</td>
       <td style="text-align:right"><button onclick="event.stopPropagation();location.hash='#/types/${esc(t.ruleType)}'">查看</button></td>
     </tr>`;
   }).join('');
-  return card('规则类型', '规则类型 = 一条 DRL 模板 + 一组参数。步骤链模式下，每一步「是否需要调接口、调哪个接口」都在这里定，后续步骤可直接引用前面接口回填的值',
+  return card('规则类型', '规则类型 = 条件 + 动作 + 返回结构（decision 字段在类型上注册）。步骤链模式下，每一步「先判什么、再写哪个字段」都在这里定，后续步骤可直接引用前面写入的字段',
     `<button class="pri" onclick="location.hash='#/types/new'">+ 新建规则类型</button>`,
-    rows ? `<table><thead><tr><th style="width:40%">类型</th><th style="width:18%">模式</th><th>规则数</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+    rows ? `<table><thead><tr><th style="width:40%">类型</th><th style="width:18%">模式</th><th>规则数</th><th style="width:22%">返回结构（decision）</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
          : '<div class="empty">还没有规则类型</div>');
+}
+
+/* ===== 返回结果结构（决策输出字段）：规则类型上注册 → 业务调用后拿到的 decision ===== */
+function outputsCard(t) {
+  const cur = (t.outputFields || '').split(',').map(s => s.trim()).filter(Boolean);
+  return card('返回结果结构（决策输出字段）',
+    '在这里注册的字段 = 业务系统调用规则引擎后拿到的 decision 结构。改完点「保存返回结构」立即生效（不用重发规则）',
+    `<button onclick="pickAllOutputs(true)">全选</button><button onclick="pickAllOutputs(false)">清空</button>` +
+    `<button class="pri" onclick="saveTypeOutputs('${esc(t.ruleType)}')">保存返回结构</button>`,
+    `<div class="grid">
+       <div style="grid-column:span 2">
+         <label>从①单据注册的字段树里多选（Ctrl/Cmd 多选；也可手填不在字段树里的决策位，如 codeHit）</label>
+         <select id="td-outputs" multiple size="8" onchange="updateOutputPreview()">${allFieldOptions(t.outputFields)}</select>
+         <div class="sub">当前已注册：${cur.length ? cur.map(k => `<span class="tag b">${esc(k)}</span>`).join('') : '<span class="tag w">（空 → 业务拿到的 decision 会是 {}）</span>'}</div>
+         <div style="display:flex;gap:8px;margin-top:6px">
+           <input id="td-outputs-new" placeholder="手填一个决策位（如 instantid、codeHit）"/>
+           <button onclick="addOutputKey()">+ 添加决策位</button>
+         </div>
+       </div>
+       <div>
+         <label>业务调用后拿到的结构（示例，随选择实时变化）</label>
+         <pre id="td-outputs-preview" style="margin:0;padding:10px;background:#0f172a;color:#e2e8f0;border-radius:8px;font-size:12px;line-height:1.5;overflow:auto"></pre>
+         <div class="sub">取值范围：优先规则写进 <code>ext</code> 的决策值，其次单据原值；①单据注册里勾了「决策输出」的字段也会进 decision（两边取并集）</div>
+       </div>
+     </div><div id="msg-typeout"></div>`);
+}
+function pickAllOutputs(on) {
+  const s = $('td-outputs') || $('t-outputs');
+  if (!s) return;
+  Array.from(s.options).forEach(o => { o.selected = on; });
+  updateOutputPreview();
+}
+function updateOutputPreview() {
+  const s = $('td-outputs') || $('t-outputs');
+  const pre = $('td-outputs-preview') || $('t-outputs-preview');
+  if (!s || !pre) return;
+  const dec = {};
+  Array.from(s.selectedOptions).forEach(o => { dec[o.value] = '<值>'; });
+  pre.textContent = JSON.stringify({
+    evalId: '本次评估ID', evaluatedAt: '时间', docCode: '单据编码', bizId: '业务主键',
+    decision: dec, data: '{...入参回显...}', ext: '{...决策区全量...}', messages: ['规则过程消息'], fired: 1
+  }, null, 2);
 }
 
 function typeDetail(code) {
@@ -325,12 +398,7 @@ function typeDetail(code) {
       `<div class="kv">
          <div class="k">分组</div><div>${esc(t.ruleGroup||'-')}</div>
          <div class="k">内置/自定义</div><div>${t.builtin ? '内置（系统维护）' : '自定义'}</div>
-         <div class="k">决策输出字段</div><div>
-           <select id="td-outputs" multiple size="4" style="max-width:460px">${allFieldOptions(t.outputFields)}</select>
-           <button style="margin-left:8px" onclick="saveTypeOutputs('${esc(t.ruleType)}')">保存决策输出字段</button>
-           <div class="sub">在这里注册的字段会出现在评估响应的 <code>decision</code> 里（业务方的决策契约）；与①单据注册里勾选的字段取并集</div>
-           <div id="msg-typeout"></div>
-         </div>
+         <div class="k">返回结构（decision 字段数）</div><div>${(() => { const c = (t.outputFields || '').split(',').map(s => s.trim()).filter(Boolean); return c.length ? c.map(k => `<span class="tag b">${esc(k)}</span>`).join(' ') + ' <span class="sub">↓ 见下方「返回结果结构」卡片</span>' : '<span class="tag w">未注册</span> <span class="sub">↓ 见下方「返回结果结构」卡片：勾选即注册</span>'; })()}</div>
          <div class="k">参数</div><div>${(t.fields||[]).map(f => `<span class="tag b">${esc(f.fieldName)} <code>${esc(f.fieldKey)}</code>${f.defaultValue ? ' 默认=' + esc(f.defaultValue) : ''}</span>`).join(' ') || '-'}</div>
        </div>${stepPanel}
        <div id="new-rule" style="display:none" class="stepcard" style="margin-top:14px">
@@ -342,6 +410,7 @@ function typeDetail(code) {
            <button onclick="toggleNew('new-rule')">取消</button></div>
          <div class="msg" id="msg-rule"></div>
        </div>`)
+    + outputsCard(t)
     + card('该类型下的规则', '改参数 → 重新发布即生效（不用重启）',
       '', ruleRows ? `<table><thead><tr><th style="width:32%">规则</th><th>参数</th><th></th></tr></thead><tbody>${ruleRows}</tbody></table>`
                   : '<div class="empty">还没有规则，点右上「+ 新建规则」</div>')
@@ -381,17 +450,15 @@ function typeEditor() {
        <div><label>绑定单据（通用单据载体 DocFact）</label><select id="t-doc">${DOCS.map(d => `<option value="${esc(d.docCode)}">${esc(d.docName)}（${esc(d.docCode)}）</option>`).join('')}</select></div>
        <div><label>分组</label><input id="t-group" value="approval"/></div>
        <div><label>排序</label><input id="t-sort" value="60"/></div>
-       <div style="grid-column:span 3"><label>本类型输出的决策字段（可多选 → 评估响应 decision 里返回）</label>
-         <select id="t-outputs" multiple size="4">${(function(){
-           const out = [];
-           const walk = (ns, dn) => (ns || []).forEach(o => {
-             (o.fields || []).forEach(f => out.push('<option value="' + esc(f.fieldKey) + '">' + esc(dn) + ' · ' + esc(f.fieldName) + ' (' + esc(f.fieldKey) + ')</option>'));
-             walk(o.children, dn);
-           });
-           DOCS.forEach(d => walk(d.tree, d.docName));
-           return out.join('');
-         })()}</select>
-         <div class="sub">在这里注册的字段 = 业务方的决策契约（Ctrl/Cmd 多选）；①单据注册里勾的字段也会进 decision，两边取并集</div></div>
+       <div style="grid-column:span 3"><label>本类型输出的决策字段 = 业务拿到的返回结构（可多选 → 评估响应 decision 里返回）</label>
+         <select id="t-outputs" multiple size="4" onchange="updateOutputPreview()">${allFieldOptions('')}</select>
+         <div style="display:flex;gap:8px;margin-top:6px">
+           <input id="t-outputs-new" placeholder="手填一个决策位（如 instantid、codeHit）"/>
+           <button onclick="addOutputKey()">+ 添加决策位</button>
+         </div>
+         <div class="sub">在这里注册的字段 = 业务方的返回结构（Ctrl/Cmd 多选）；①单据注册里勾的字段也会进 decision，两边取并集</div>
+         <label style="margin-top:8px">业务调用后拿到的结构（示例，随选择实时变化）</label>
+         <pre id="t-outputs-preview" style="margin:0;padding:10px;background:#0f172a;color:#e2e8f0;border-radius:8px;font-size:12px;line-height:1.5;overflow:auto"></pre></div>
      </div>
      <div class="stepbar" style="margin-top:18px"><span class="stepno" style="background:#0f172a">≡</span><b>步骤链</b>
        <span class="sub">按从上到下执行</span>
@@ -560,6 +627,7 @@ function route() {
   else if (top === 'types' && h[1]) { view.innerHTML = typeDetail(decodeURIComponent(h[1])); loadStepPanel(decodeURIComponent(h[1])); }
   else if (top === 'types') view.innerHTML = typesList();
   else view.innerHTML = docsList();
+  updateOutputPreview();   // 详情/新建类型页有「返回结果结构」卡片时，把结构示例渲染出来
   return view;
 }
 async function refresh() { await loadCommon(); LOADED = true; route(); }

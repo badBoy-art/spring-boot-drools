@@ -324,6 +324,8 @@ public class RuleTypeController {
         node.put("typeDesc", meta.getTypeDesc());
         node.put("builtin", Boolean.TRUE.equals(meta.getBuiltin()));
         node.put("sortOrder", meta.getSortOrder());
+        // 返回结构（决策输出字段）：列表页要显示"哪些类型注册了返回结构"，漏了它页面全显示"未注册"
+        node.put("outputFields", meta.getOutputFields());
         node.put("fields", meta.getFields());
         node.put("templateBody", metaDao.findTemplate(meta.getRuleType()));
         node.put("ruleCount", metaDao.countRules(meta.getRuleType()));
