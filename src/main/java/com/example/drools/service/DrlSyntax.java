@@ -172,7 +172,9 @@ public final class DrlSyntax {
                 || "not startsWith".equalsIgnoreCase(op) || "not endsWith".equalsIgnoreCase(op)) {
             boolean negate = op.toLowerCase().startsWith("not");
             boolean start = op.toLowerCase().endsWith("startsWith");
-            String core = escapeRegex(trimQuotes(value));
+            // 取值是 ${参数名} 占位符时**不能**做正则转义：否则发布时替换不上（实测踩到：
+            // 占位符被转义成 \$\{step1Value\} → DrlGenerator 认不出 → DRL 编译报 illegal escape sequence）
+            String core = value.startsWith("${") ? value : escapeRegex(trimQuotes(value));
             String regex = start ? "^" + core : core + "$";
             return fieldExpr + (negate ? " not matches " : " matches ") + "\"" + regex + "\"";
         }
