@@ -18,7 +18,7 @@ R=$(post /rule/type/save /tmp/t2.json)
 has "类型已保存（含 1 步）" "$R" '"ruleType":"SKU_OPS_2"'
 has "步骤已落库" "$($M -e "select count(*) from rule_step where rule_type='SKU_OPS_2'" 2>/dev/null | tr -d ' ')" "1"
 TPL=$($M -e "select template_body from rule_template where rule_type='SKU_OPS_2'" 2>/dev/null)
-has "模板是【前缀】语义 matches \"^...\"" "$TPL" 'matches "^${step1Value}"'
+has "模板是【前缀】语义 matches \"^...\"" "$TPL" 'matches "^${step1Value}.*"'
 
 printf '%s' '{"ruleName":"SKU_OPS_2_1","ruleType":"SKU_OPS_2","ruleParams":"{\"step1Value\":\"SKU\"}"}' > /tmp/r2.json
 R=$(post /rule/create /tmp/r2.json)
@@ -28,7 +28,7 @@ has "create 成功(id=$ID)" "$ID" ""
 printf '%s' '{"step1Value":"SKU"}' > /tmp/p2.json
 has "发布成功(status=1)" "$(post "/rule/publish/$ID" /tmp/p2.json)" '"status":1'
 DRL=$($M -e "select drl_content from rule_definition where id=$ID" 2>/dev/null)
-has "DRL 里是前缀匹配" "$DRL" 'matches "^SKU"'
+has "DRL 里是前缀匹配（整串匹配所以要带 .*）" "$DRL" 'matches "^SKU.*"'
 
 echo "  命中用例（编码 SKU-9003 以 SKU 开头）:"
 R=$(curl -s -m 15 -X POST -H "$J" -d '{"bizId":"SKU-9003","skuCode":"SKU-9003","skuName":"羊毛衫","price":100,"cost":65,"品类":"家居"}' "$B/rule/evaluate?docCode=SKU")
