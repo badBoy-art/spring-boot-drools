@@ -228,23 +228,6 @@ public class AssetRefDao {
         return item instanceof Map ? (Map<String, Object>) item : null;
     }
 
-    /** 接口的适用范围（N:N）：空 = 所有单据通用 */
-    public List<String> findScopes(String actionCode) {
-        return jdbc.queryForList("SELECT doc_code FROM rule_http_action_scope WHERE action_code = ? ORDER BY doc_code",
-                String.class, actionCode);
-    }
-
-    /** 覆盖写接口适用范围（传空列表 = 改成通用） */
-    public void saveScopes(String actionCode, List<String> docCodes) {
-        jdbc.update("DELETE FROM rule_http_action_scope WHERE action_code = ?", actionCode);
-        if (docCodes == null) return;
-        for (String doc : docCodes) {
-            if (doc == null || doc.trim().isEmpty()) continue;
-            jdbc.update("INSERT IGNORE INTO rule_http_action_scope (action_code, doc_code) VALUES (?, ?)",
-                    actionCode, doc.trim());
-        }
-    }
-
     private static String str(Object o) {
         return o == null ? "" : String.valueOf(o);
     }
