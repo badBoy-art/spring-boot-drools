@@ -52,7 +52,9 @@ public class RuleDocumentDao {
         for (String csv : rows) {
             for (String k : csv.split(",")) {
                 String key = k.trim();
-                if (!key.isEmpty() && docFieldKeys.contains(key)) {
+                // 规则类型与单据是绑定的（type 上配了 docCode），所以它声明的输出字段直接采信；
+                // 真正的"防串味"由调用方做：只有在 ext/data 里真有值的字段才会进 decision。
+                if (!key.isEmpty()) {
                     out.add(key);
                 }
             }

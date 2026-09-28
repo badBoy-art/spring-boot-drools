@@ -170,12 +170,17 @@ public final class DrlSyntax {
         }
         if ("startsWith".equalsIgnoreCase(op) || "endsWith".equalsIgnoreCase(op)
                 || "not startsWith".equalsIgnoreCase(op) || "not endsWith".equalsIgnoreCase(op)) {
-            boolean negate = op.toLowerCase().startsWith("not");
-            boolean start = op.toLowerCase().endsWith("startsWith");
+            // 注意大小写：op 已转小写，后缀也必须用小写字面量比较 —— 写成 endsWith("startsWith")
+            // 永远是 false，会让【开头】算子走成【结尾】（实测踩到，副作用是决策字段永不命中）
+            String lowerOp = op.toLowerCase();
+            boolean negate = lowerOp.startsWith("not");
+            boolean start = lowerOp.endsWith("startswith");
             // 取值是 ${参数名} 占位符时**不能**做正则转义：否则发布时替换不上（实测踩到：
             // 占位符被转义成 \$\{step1Value\} → DrlGenerator 认不出 → DRL 编译报 illegal escape sequence）
+            // 关键：Java/Drools 的 matches 是【整串匹配】，"^SKU" 匹配不上 "SKU-9003"，
+            // 必须写成 "^SKU.*"（结尾同理 ".*SKU$"）。实测踩到：规则编译通过但永不命中。
             String core = value.startsWith("${") ? value : escapeRegex(trimQuotes(value));
-            String regex = start ? "^" + core : core + "$";
+            String regex = start ? "^" + core + ".*" : ".*" + core + "$";
             return fieldExpr + (negate ? " not matches " : " matches ") + "\"" + regex + "\"";
         }
         if (isListOp(op)) {
