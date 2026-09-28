@@ -30,6 +30,8 @@ public class RuleDocumentField {
      * 例如 毛利率 = (price - cost) / price。入口层用 MVEL 按表达式算好后放进单据 data。
      */
     private String expr;
+    /** 1 = 决策输出字段：评估响应里的 decision 块会返回它（业务只读 decision 即可） */
+    private Integer isOutput;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

@@ -183,10 +183,12 @@ function objBlock(code, o) {
       <td>${esc(f.fieldType)}</td>
       <td>${f.expr ? '<span class="tag b">计算 ' + esc(f.expr) + '</span>' : (esc(f.exampleValue || '-'))}</td>
       <td>${esc(f.fieldDesc || '-')}</td>
+      <td style="text-align:center" title="勾上 = 这个字段会出现在评估响应的 decision 里（业务的决策契约）">
+        <input type="checkbox" style="width:auto" ${f.isOutput === 1 ? 'checked' : ''}
+          onchange="toggleOutput('${esc(code)}','${esc(o.objectKey)}','${esc(f.fieldKey)}', this.checked)"/></td>
       <td style="text-align:right">
         <button class="ghost" onclick="copyTxt('\${${esc(f.fieldKey)}}')">复制取值</button>
-        <button class="ghost" onclick="loadFieldForm('${esc(code)}','${esc(o.objectKey)}','${esc(f.fieldKey)}')">编辑</button>
-      </td></tr>`).join('');
+        <button class="ghost" onclick="loadFieldForm('${esc(code)}','${esc(o.objectKey)}','${esc(f.fieldKey)}')">编辑</button>      </td></tr>`).join('');
   return `<div class="stepcard">
     <div class="stepbar">
       <span class="stepno" style="background:#0f172a">${o.isCollection === 1 ? '[]' : '{}'}</span>
@@ -532,6 +534,21 @@ async function saveField(docCode, objectKey) {
       fieldKey:g('key').value.trim(), fieldType:g('type').value, exampleValue:g('ex').value.trim(),
       fieldDesc:g('desc').value.trim(), expr:g('expr').value.trim(), sortOrder:99});
     msg('msg-f-' + objectKey, '字段已保存', 'ok'); await refresh();
+  } catch (e) { msg('msg-f-' + objectKey, e.message, 'err'); }
+}
+/* 勾选「决策输出字段」：勾上后评估响应里的 decision 会带上它 —— 这就是业务的决策契约 */
+async function toggleOutput(code, objectKey, fieldKey, checked) {
+  const d = DOCS.find(x => x.docCode === code);
+  let found = null;
+  const walk = ns => (ns || []).forEach(o => { if (o.objectKey === objectKey) (o.fields || []).forEach(f => { if (f.fieldKey === fieldKey) found = f; }); walk(o.children); });
+  walk(d && d.tree);
+  if (!found) return;
+  try {
+    await post('rule/doc/field/save', Object.assign({}, found, {
+      docCode: code, objectKey: objectKey, fieldKey: fieldKey, isOutput: checked ? 1 : 0
+    }));
+    msg('msg-f-' + objectKey, checked ? ('已标记 ' + fieldKey + ' 为决策输出字段（评估响应 decision 里会返回）') : ('已取消 ' + fieldKey + ' 的决策输出'), 'ok');
+    await refresh();
   } catch (e) { msg('msg-f-' + objectKey, e.message, 'err'); }
 }
 function loadFieldForm(docCode, objectKey, fieldKey) {

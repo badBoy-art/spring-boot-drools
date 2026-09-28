@@ -40,6 +40,12 @@ public class RuleDocumentDao {
                 docName, remark, docCode);
     }
 
+    /** 决策输出字段的取值路径（单据注册里 is_output=1 的字段）——评估响应的 decision 块按这个清单组装 */
+    public List<String> findOutputFieldKeys(String docCode) {
+        return jdbc.queryForList("SELECT field_key FROM rule_document_field WHERE doc_code = ? AND is_output = 1 "
+                + "ORDER BY sort_order, id", String.class, docCode);
+    }
+
     /** 单据对象（含嵌套） */
     public List<RuleDocumentObject> findObjects(String docCode) {
         return jdbc.query("SELECT * FROM rule_document_object WHERE doc_code = ? ORDER BY sort_order, id",
@@ -75,12 +81,14 @@ public class RuleDocumentDao {
     public int upsertField(RuleDocumentField field) {
         return jdbc.update(
                 "INSERT INTO rule_document_field (doc_code, object_key, field_name, field_key, field_type, "
-                        + "example_value, field_desc, expr, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                        + "example_value, field_desc, expr, is_output, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                         + "ON DUPLICATE KEY UPDATE object_key = VALUES(object_key), field_name = VALUES(field_name), "
                         + "field_type = VALUES(field_type), example_value = VALUES(example_value), "
-                        + "field_desc = VALUES(field_desc), expr = VALUES(expr), sort_order = VALUES(sort_order)",
+                        + "field_desc = VALUES(field_desc), expr = VALUES(expr), is_output = VALUES(is_output), "
+                        + "sort_order = VALUES(sort_order)",
                 field.getDocCode(), field.getObjectKey(), field.getFieldName(), field.getFieldKey(),
                 field.getFieldType(), field.getExampleValue(), field.getFieldDesc(), field.getExpr(),
+                field.getIsOutput() == null ? 0 : field.getIsOutput(),
                 field.getSortOrder() == null ? 1 : field.getSortOrder());
     }
 
@@ -129,6 +137,7 @@ public class RuleDocumentDao {
             f.setExampleValue(rs.getString("example_value"));
             f.setFieldDesc(rs.getString("field_desc"));
             f.setExpr(rs.getString("expr"));
+            f.setIsOutput(rs.getInt("is_output"));
             f.setSortOrder(rs.getInt("sort_order"));
             return f;
         };

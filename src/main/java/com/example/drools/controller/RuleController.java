@@ -58,6 +58,18 @@ public class RuleController {
             session.insert(fact);
             int fired = engine.fireAllRules(session);
             Map<String, Object> result = new java.util.LinkedHashMap<String, Object>();
+            // decision：只装"单据注册里标了决策输出"的字段（业务只读这一块就够）
+            //   取值优先 ext（规则写进去的决策），其次 data（入参/派生的原值）
+            Map<String, Object> decision = new java.util.LinkedHashMap<String, Object>();
+            for (String outKey : documentDao.findOutputFieldKeys(docCode)) {
+                Object v = fact.getExt().containsKey(outKey) ? fact.getExt().get(outKey) : fact.getData().get(outKey);
+                if (v != null) {
+                    decision.put(outKey, v);
+                }
+            }
+            result.put("decision", decision);
+            result.put("evalId", java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+            result.put("evaluatedAt", java.time.LocalDateTime.now().withNano(0).toString());
             result.put("docCode", docCode);
             result.put("bizId", fact.getBizId());
             result.put("data", fact.getData());
