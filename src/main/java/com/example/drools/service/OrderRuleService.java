@@ -41,7 +41,8 @@ public class OrderRuleService {
                 session.insert(item);
                 session.insert(item.getProduct());
             }
-            session.fireAllRules();
+            // 走引擎的带上限点火：规则写错不收敛时只会告警，不会把线程挂死
+            ruleEngine.fireAllRules(session);
         } finally {
             session.dispose();
         }

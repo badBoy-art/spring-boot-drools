@@ -33,7 +33,12 @@ public class DrlGenerator {
             "import com.example.drools.domain.Order;\n" +
             "import com.example.drools.domain.OrderItem;\n" +
             "import com.example.drools.domain.Product;\n" +
-            "import com.example.drools.domain.Customer;\n\n";
+            "import com.example.drools.domain.Customer;\n" +
+            "import com.example.drools.domain.DocFact;\n\n" +
+            // 规则要做"动作"（调 HTTP 接口）时，把 Spring 容器里的网关当 global 注入：
+            // 模板里直接写 httpActionGateway.invoke("RISK_CHECK", $o); 即可 —— 接口地址/入参/返回值全在库里配。
+            // global 由 DynamicRuleEngine.newKieSession() 在每个会话上 setGlobal，规则文件里只是声明。
+            "global com.example.drools.http.HttpActionGateway httpActionGateway;\n\n";
 
     private final RuleTemplateDao templateDao;
     private final RuleTypeMetaDao metaDao;
@@ -58,7 +63,17 @@ public class DrlGenerator {
         String body = render(tpl.getTemplateBody(), params, fieldTypes);
 
         if (body.contains("${")) {
-            throw new IllegalArgumentException("模板存在未替换的占位符: " + body);
+            // ${ext.xxx} 是运行期引用（由网关渲染入参时解析），不算"未替换的占位符"；
+            // 其它 ${...} 都必须被参数替换掉，否则说明类型参数没配对。
+            java.util.regex.Matcher leftover = java.util.regex.Pattern.compile("\\$\\{(?!ext[.\\[\\-])").matcher(body);
+            if (leftover.find()) {
+                throw new IllegalArgumentException("模板存在未替换的占位符: " + body);
+            }
+        }
+        // 多步骤模板（③ 的步骤链）本身就是**完整 DRL**（含 rule...end），不能再套外层 rule；
+        // 里面的 @RULE@ 会被替换成规则名，保证同类型多条规则时规则名不重复。
+        if (body.contains("rule \"")) {
+            return HEADER + body.replace("@RULE@", ruleName) + "\n";
         }
         return HEADER + "rule \"" + ruleName + "\"\n" + body + "\nend\n";
     }

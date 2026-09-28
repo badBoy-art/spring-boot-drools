@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>规则中台 · 配置台</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --panel:#fff; --line:#e6e8ec; --line2:#f0f1f4;
+    --txt:#1f2328; --sub:#6b7280; --pri:#2563eb; --pri-soft:#eff4ff;
+    --ok:#15803d; --ok-soft:#eefaf1; --warn:#b45309; --warn-soft:#fff7ed;
+    --err:#b91c1c; --err-soft:#fef2f2; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+  a{color:var(--pri);text-decoration:none}
+  /* 顶栏 */
+  .top{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);
+       display:flex;align-items:center;gap:22px;padding:0 26px;height:58px}
+  .logo{font-weight:700;font-size:15.5px;letter-spacing:.2px}
+  .logo small{font-weight:400;color:var(--sub);font-size:12px;margin-left:8px}
+  .tabs{display:flex;gap:4px;flex:1}
+  .tabs a{padding:7px 14px;border-radius:9px;color:var(--txt);font-weight:600;font-size:13.5px}
+  .tabs a:hover{background:var(--line2)}
+  .tabs a.on{background:var(--pri-soft);color:var(--pri)}
+  .stat{font-size:12.5px;color:var(--sub)}
+  .stat b{color:var(--txt)}
+  /* 布局 */
+  .wrap{max-width:1180px;margin:22px auto 60px;padding:0 22px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;margin-bottom:16px}
+  .head{display:flex;align-items:flex-start;gap:14px;margin-bottom:14px}
+  .head h2{margin:0;font-size:17px}
+  .head .desc{color:var(--sub);font-size:12.5px;margin-top:4px}
+  .head .acts{margin-left:auto;display:flex;gap:8px;flex-shrink:0}
+  .crumb{font-size:12.5px;color:var(--sub);margin-bottom:12px}
+  /* 按钮 */
+  button,.btn{font:600 13px/1 inherit;padding:9px 15px;border-radius:9px;border:1px solid var(--line);
+       background:#fff;color:var(--txt);cursor:pointer}
+  button:hover{border-color:#cfd3da;background:#fcfcfd}
+  .pri{background:var(--pri);border-color:var(--pri);color:#fff}
+  .pri:hover{background:#1d4ed8;border-color:#1d4ed8}
+  .ghost{border-color:transparent;background:transparent;color:var(--pri);padding:6px 8px}
+  .danger{color:var(--err);border-color:#f3d6d6}
+  button[disabled]{opacity:.5;cursor:not-allowed}
+  /* 列表 */
+  table{width:100%;border-collapse:collapse}
+  th{font-size:12px;color:var(--sub);text-align:left;font-weight:600;padding:9px 12px;background:#fafbfc;border-bottom:1px solid var(--line)}
+  td{padding:13px 12px;border-bottom:1px solid var(--line2);vertical-align:top}
+  tbody tr.row{cursor:pointer}
+  tbody tr.row:hover{background:#fcfdff}
+  .title{font-weight:600}
+  .sub{color:var(--sub);font-size:12.5px;margin-top:3px}
+  code{background:var(--line2);padding:1.5px 6px;border-radius:5px;font-size:12.5px;font-family:ui-monospace,Menlo,monospace}
+  /* 徽标 */
+  .tag{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);
+       background:#fafbfc;color:var(--sub);margin:2px 4px 0 0}
+  .tag.b{background:var(--pri-soft);border-color:#d6e2ff;color:var(--pri)}
+  .tag.g{background:var(--ok-soft);border-color:#cbe9d6;color:var(--ok)}
+  .tag.w{background:var(--warn-soft);border-color:#f6dfc7;color:var(--warn)}
+  .tag.r{background:var(--err-soft);border-color:#f6d5d5;color:var(--err)}
+  /* 详情 */
+  .kv{display:grid;grid-template-columns:132px 1fr;gap:10px 16px;font-size:13px}
+  .kv .k{color:var(--sub)}
+  pre{margin:8px 0 0;background:#0f172a;color:#e2e8f0;padding:14px 16px;border-radius:10px;
+      overflow:auto;font-size:12.5px;line-height:1.7;max-height:340px}
+  input,select,textarea{font:13.5px inherit;padding:9px 11px;border:1px solid var(--line);border-radius:9px;width:100%;background:#fff;color:var(--txt)}
+  textarea{min-height:74px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+  label{display:block;font-size:12px;color:var(--sub);margin:0 0 5px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .msg{margin-top:12px;font-size:13px;padding:10px 13px;border-radius:9px;display:none}
+  .msg.show{display:block}
+  .msg.ok{background:var(--ok-soft);color:var(--ok)}
+  .msg.err{background:var(--err-soft);color:var(--err)}
+  .empty{padding:34px;text-align:center;color:var(--sub);font-size:13px}
+  .steps th,.steps td{padding:10px}
+  .stepbar{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+  .stepno{width:24px;height:24px;border-radius:50%;background:var(--pri);color:#fff;font-size:12px;
+          font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .stepcard{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px;background:#fcfdff}
+  .flow{font-size:12.5px;color:var(--sub);margin-top:6px}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="logo">规则中台 <small>配置台 · 研发维护</small></div>
+  <nav class="tabs">
+    <a href="#/docs" id="tab-docs">单据注册</a>
+    <a href="#/actions" id="tab-actions">接口注册</a>
+    <a href="#/types" id="tab-types">规则类型</a>
+  </nav>
+  <div class="stat">生效规则 <b id="st-rules">-</b> ｜ 已发布 <b id="st-pub">-</b></div>
+</div>
+<div class="wrap" id="view"></div>
+<script>
+/* ============ 基础 ============ */
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const J = {method:'POST', headers:{'Content-Type':'application/json'}};
+async function api(path, opt) {
+  const res = await fetch(path, opt);
+  const text = await res.text();
+  let body; try { body = text ? JSON.parse(text) : {}; } catch (e) { body = {message:text}; }
+  if (!res.ok) throw new Error(body.message || body.error || res.status);
+  return body;
+}
+const post = (p, b) => api(p, Object.assign({}, J, {body: JSON.stringify(b == null ? {} : b)}));
+const del  = p => api(p, {method:'DELETE'});
+const msg = (el, text, kind) => { const n = $(el); if (!n) return; n.className = 'msg show ' + (kind||'ok'); n.textContent = text; };
+let DOCS = [], ACTIONS = [], TYPES = [], RULES = [], REFS = {docs:{}, actions:{}}, CATEGORIES = [], DOMAINS = {currentEnv:'dev', domains:[]};
+
+async function loadCommon() {
+  const [d, a, t, r, info, refs, cats, dom] = await Promise.all([
+    api('rule/doc/tree'), api('rule/http/actions'), api('rule/type/list'),
+    api('rule/list'), api('rule/engine/info'), api('rule/refs'),
+    api('rule/http/categories'), api('rule/http/domains')
+  ]);
+  DOCS = d; ACTIONS = a; TYPES = t; RULES = r; REFS = refs; CATEGORIES = cats; DOMAINS = dom;
+  $('st-rules').textContent = info.ruleCount;
+  $('st-pub').textContent = info.publishedRuleCount;
+}
+/* ============ ① 单据注册：列表 + 详情 ============ */
+function docsList() {
+  const rows = DOCS.map(d => {
+    const ref = REFS.docs[d.docCode] || {refCount:0};
+    const objs = (d.tree || []).length;
+    return `<tr class="row" onclick="location.hash='#/docs/${esc(d.docCode)}'">
+      <td><div class="title">${esc(d.docName)}</div><div class="sub"><code>${esc(d.docCode)}</code>${d.remark ? ' ｜ ' + esc(d.remark) : ''}</div></td>
+      <td>${objs} 个对象<div class="sub">${d.fieldCount} 个字段</div></td>
+      <td>${refBadge('doc', d.docCode)}</td>
+      <td style="text-align:right"><button onclick="event.stopPropagation();location.hash='#/docs/${esc(d.docCode)}'">查看</button></td>
+    </tr>`;
+  }).join('');
+  return card('单据', '一个单据注册一次，可被多个规则类型 / 多条规则 / 多个接口引用（一处注册，多处调用）',
+    `<button class="pri" onclick="toggleNew('new-doc')">+ 新建单据</button>`,
+    `<div id="new-doc" style="display:none" class="stepcard">
+       <div class="grid">
+         <div><label>单据编码 docCode（大写字母/数字/下划线）</label><input id="d-code" placeholder="SKU"/></div>
+         <div><label>单据名称</label><input id="d-name" placeholder="商品"/></div>
+         <div><label>说明</label><input id="d-remark" placeholder="商品主数据"/></div>
+       </div>
+       <div style="margin-top:12px"><button class="pri" onclick="saveDoc()">新建单据</button>
+         <button onclick="toggleNew('new-doc')">取消</button></div>
+       <div class="msg" id="msg-doc"></div>
+     </div>` +
+    (rows ? `<table><thead><tr><th style="width:36%">单据</th><th style="width:20%">结构</th><th>被引用（一处注册，多处调用）</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+          : '<div class="empty">还没有单据，点右上「+ 新建单据」</div>'));
+}
+
+function docDetail(code) {
+  const d = DOCS.find(x => x.docCode === code);
+  if (!d) return card('单据不存在', '', '', '<div class="empty">找不到 ' + esc(code) + '</div>');
+  const ref = REFS.docs[code] || {refCount:0};
+  const objs = (d.tree || []).map(o => objBlock(code, o)).join('');
+  const delBtn = ref.refCount > 0
+    ? `<button disabled title="被引用中，先处理引用再删">删除单据</button>`
+    : `<button class="danger" onclick="removeDoc('${esc(code)}')">删除单据</button>`;
+  return `<div class="crumb"><a href="#/docs">单据</a> / ${esc(d.docName)}</div>` +
+    card(`${esc(d.docName)} <code>${esc(d.docCode)}</code>`, '单据详情：对象结构 + 字段；字段的「计算表达式」就是派生指标（如毛利率）',
+      `${delBtn}<button onclick="toggleNew('new-obj')">+ 新建对象</button>`,
+      `<div class="kv">
+         <div class="k">单据编码</div><div><code>${esc(d.docCode)}</code></div>
+         <div class="k">说明</div><div>${esc(d.remark || '-')}</div>
+         <div class="k">字段总数</div><div>${d.fieldCount} 个</div>
+         <div class="k">被引用</div><div>${refBadge('doc', code)}</div>
+       </div>
+       <div id="new-obj" style="display:none" class="stepcard" style="margin-top:14px">
+         <div class="grid">
+           <div><label>对象标识 objectKey</label><input id="o-key" placeholder="customer"/></div>
+           <div><label>对象中文名</label><input id="o-name" placeholder="客户"/></div>
+           <div><label>父对象（空=根对象）</label><select id="o-parent"></select></div>
+           <div><label>是否数组对象</label><select id="o-coll"><option value="0">否</option><option value="1">是（按 items[0] 取）</option></select></div>
+           <div><label>取值路径</label><input id="o-path" placeholder="items[0]"/></div>
+         </div>
+         <div style="margin-top:12px"><button class="pri" onclick="saveObj('${esc(code)}')">新建对象</button>
+           <button onclick="toggleNew('new-obj')">取消</button></div>
+         <div class="msg" id="msg-obj"></div>
+       </div>` + objs);
+}
+
+function objBlock(code, o) {
+  const fields = (o.fields || []).map(f => `<tr>
+      <td>${esc(f.fieldName)}<div class="sub"><code>${esc(f.fieldKey)}</code></div></td>
+      <td>${esc(f.fieldType)}</td>
+      <td>${f.expr ? '<span class="tag b">计算 ' + esc(f.expr) + '</span>' : (esc(f.exampleValue || '-'))}</td>
+      <td>${esc(f.fieldDesc || '-')}</td>
+      <td style="text-align:right">
+        <button class="ghost" onclick="copyTxt('\${${esc(f.fieldKey)}}')">复制取值</button>
+        <button class="ghost" onclick="loadFieldForm('${esc(code)}','${esc(o.objectKey)}','${esc(f.fieldKey)}')">编辑</button>
+      </td></tr>`).join('');
+  return `<div class="stepcard">
+    <div class="stepbar">
+      <span class="stepno" style="background:#0f172a">${o.isCollection === 1 ? '[]' : '{}'}</span>
+      <b>${esc(o.objectName)}</b>
+      <code>${esc(o.objectKey)}</code>
+      <span class="sub">${o.valuePath ? '路径 ' + esc(o.valuePath) : ''}${o.remark ? ' ｜ ' + esc(o.remark) : ''}</span>
+      <span style="margin-left:auto"><button onclick="toggleNew('new-field-${esc(o.objectKey)}')">+ 新建字段</button></span>
+    </div>
+    ${fields ? `<table><thead><tr><th style="width:22%">字段</th><th style="width:12%">类型</th><th style="width:20%">示例 / 计算</th><th>说明</th><th></th></tr></thead><tbody>${fields}</tbody></table>`
+             : '<div class="sub">（该对象下还没有字段）</div>'}
+    <div id="new-field-${esc(o.objectKey)}" style="display:none;margin-top:12px">
+      <div class="grid">
+        <div><label>字段中文名</label><input id="f-${esc(o.objectKey)}-name" placeholder="毛利率"/></div>
+        <div><label>fieldName 取值路径</label><input id="f-${esc(o.objectKey)}-key" placeholder="(price - cost) * 1.0 / price"/></div>
+        <div><label>类型</label><select id="f-${esc(o.objectKey)}-type"><option>STRING</option><option>NUMBER</option><option>DECIMAL</option><option>BOOL</option></select></div>
+        <div><label>示例值</label><input id="f-${esc(o.objectKey)}-ex" placeholder="0.35"/></div>
+        <div><label>说明</label><input id="f-${esc(o.objectKey)}-desc" placeholder="派生字段：(售价-成本)/售价"/></div>
+        <div><label>计算表达式（可空；填了就是派生字段，引擎进规则前先算好）</label><input id="f-${esc(o.objectKey)}-expr" placeholder="(price - cost) * 1.0 / price"/></div>
+      </div>
+      <div style="margin-top:12px"><button class="pri" onclick="saveField('${esc(code)}','${esc(o.objectKey)}')">新建字段</button>
+        <button onclick="toggleNew('new-field-${esc(o.objectKey)}')">取消</button></div>
+      <div class="msg" id="msg-f-${esc(o.objectKey)}"></div>
+    </div>
+    ${(o.children || []).map(c => objBlock(code, c)).join('')}
+  </div>`;
+}
+
+function refBadge(kind, key) {
+  const item = kind === 'doc' ? REFS.docs[key] : REFS.actions[key];
+  if (!item || !item.refCount) return '<span class="tag">未被引用（可安全删除）</span>';
+  const map = kind === 'doc'
+    ? [['types','类型'],['rules','规则'],['tables','组合表'],['actions','接口']]
+    : [['docs','单据'],['types','类型'],['rules','规则'],['tables','组合表']];
+  return map.filter(([f]) => (item[f]||[]).length)
+    .map(([f,label]) => (item[f]||[]).map(x => `<span class="tag b">${label} ${esc(x)}</span>`).join('')).join('');
+}
+function card(title, desc, acts, body) {
+  return `<div class="card"><div class="head"><div><h2>${title}</h2>${desc ? '<div class="desc">' + desc + '</div>' : ''}</div>
+    <div class="acts">${acts || ''}</div></div>${body || ''}</div>`;
+}
+function toggleNew(id) { const n = $(id); if (n) n.style.display = n.style.display === 'none' ? 'block' : 'none'; }
+function copyTxt(t) { try { navigator.clipboard.writeText(t); } catch (e) {} }
+
+/* ============ ② 接口注册：列表 + 详情 ============ */
+function actionsList() {
+  const rows = ACTIONS.map(a => {
+    const item = REFS.actions[a.actionCode] || {};
+    const scope = item.universal ? '通用（所有单据）' : ((item.scope||[]).join(', ') || '通用');
+    return `<tr class="row" onclick="location.hash='#/actions/${esc(a.actionCode)}'">
+      <td><div class="title">${esc(a.actionName)}</div><div class="sub"><code>${esc(a.actionCode)}</code> ｜ ${esc(a.actionCategory||'未分类')}</div></td>
+      <td><code>${esc(a.method)}</code> <span class="sub">${esc(a.domainKey)}${esc(a.path)}</span>
+          <div class="sub">超时 ${a.timeoutMs}ms${a.authCode ? ' ｜ 认证 ' + esc(a.authCode) : ''}${a.reqEncrypt && a.reqEncrypt!=='NONE' ? ' ｜ 加密 ' + esc(a.reqEncrypt) : ''}</div></td>
+      <td><span class="tag w">${esc(scope)}</span></td>
+      <td>${refBadge('action', a.actionCode)}</td>
+      <td style="text-align:right"><button onclick="event.stopPropagation();location.hash='#/actions/${esc(a.actionCode)}'">查看</button></td>
+    </tr>`;
+  }).join('');
+  return card('接口', '接口是独立资产：注册一次，任何单据的规则都能调它（适用单据留空 = 通用）；入参模板支持 ${字段} 与 ${ext.上一步回填值}',
+    `<button class="pri" onclick="toggleNew('new-action')">+ 新建接口</button>`,
+    `<div id="new-action" style="display:none" class="stepcard">${actionForm(null)}</div>` +
+    (rows ? `<table><thead><tr><th style="width:28%">接口</th><th style="width:32%">请求</th><th style="width:14%">适用范围</th><th>被引用</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+          : '<div class="empty">还没有接口，点右上「+ 新建接口」</div>'));
+}
+
+function actionForm(a) {
+  const v = a || {};
+  const co = k => v[k] == null ? '' : v[k];
+  const opt = (list, cur, labels) => list.map((x,i) => `<option value="${x}"${x === cur ? ' selected' : ''}>${labels ? labels[i] : x}</option>`).join('');
+  return `
+  <div class="grid">
+    <div><label>动作码 actionCode（主键，大写）</label><input id="a-code" value="${esc(co('actionCode'))}" placeholder="ORDER_PUSH"/></div>
+    <div><label>接口名称</label><input id="a-name" value="${esc(co('actionName'))}" placeholder="订单推送"/></div>
+    <div><label>分类（可自助添加）</label>
+      <div style="display:flex;gap:8px"><select id="a-cat"></select><button onclick="addCategory()">+ 新增分类</button></div></div>
+    <div><label>方法</label><select id="a-method">${opt(['POST','GET','PUT','DELETE'], co('method')||'POST')}</select></div>
+    <div><label>参数位置（GET/DELETE 默认走 URL query，POST/PUT 默认走请求体）</label>
+      <select id="a-paramin">${opt(['AUTO','QUERY','BODY'], co('paramIn')||'AUTO', ['自动（按方法判断）','URL query 参数','请求体参数'])}</select></div>
+    <div><label>域名（填域名键 → 按环境解析；也可直接填 https:// 开头的完整域名）</label>
+      <div style="display:flex;gap:8px"><input id="a-domain" value="${esc(co('domainKey'))}" placeholder="mock"/>
+        <button onclick="toggleNew('env-domain')">环境域名</button></div></div>
+    <div><label>路径 path</label><input id="a-path" value="${esc(co('path'))}" placeholder="/risk"/></div>
+    <div><label>超时(ms)</label><input id="a-timeout" value="${esc(co('timeoutMs')||2000)}"/></div>
+    <div><label>额外请求头 JSON（值支持 单据字段 / ext.上游回填 / 表达式，调用时渲染）</label><input id="a-headers" value="${esc(co('headersJson'))}" placeholder='{"X-Tenant":"demo","X-Biz":"${'${orderId}'}"}'/></div>
+    <div><label>适用单据（多选；不选=通用）</label><select id="a-scopes" multiple size="3" style="min-height:70px">${(v._scopes||[]).length ? '' : ''}${DOCS.map(d => `<option value="${esc(d.docCode)}"${(v._scopes||[]).indexOf(d.docCode) >= 0 ? ' selected' : ''}>${esc(d.docName)}（${esc(d.docCode)}）</option>`).join('')}</select></div>
+  </div>
+  <div style="margin-top:14px"><label>入参模板 bodyTemplate —— 这里写「逻辑参数名」，具体取哪个值由规则侧绑定</label>
+    <div class="sub">例：{"bizId":"${'${bizId}'}","amount":${'${amount}'},"channel":"${'${channel}'}"} —— 数字字段写成裸的（不加引号），字符串加引号；
+      规则里再写 bizId = ${'${orderId}'} / amount = ${'${totalAmount}'} / channel = 规则引擎。也可以直接写上下文路径（${'${orderId}'}）作为接口自身的默认取值。</div>
+    <textarea id="a-body" placeholder='示例：{"bizId":"${'${bizId}'}","amount":${'${amount}'}}' oninput="hintBody()">${esc(co('bodyTemplate'))}</textarea>
+    <div id="a-body-hint">${templateHint(co('bodyTemplate'))}</div></div>
+  <div class="grid" style="margin-top:14px">
+    <div><label>认证配置</label><select id="a-auth"></select></div>
+    <div><label>请求体加密</label><select id="a-reqenc">${opt(['NONE','AES_CBC','AES_GCM'], co('reqEncrypt')||'NONE')}</select></div>
+    <div><label>加密密钥引用名</label><input id="a-reqkey" value="${esc(co('reqEncryptKeyRef'))}" placeholder="aesKey"/></div>
+    <div><label>响应体解密</label><select id="a-respdec">${opt(['NONE','AES_CBC','AES_GCM'], co('respDecrypt')||'NONE')}</select></div>
+    <div><label>解密密钥引用名</label><input id="a-respkey" value="${esc(co('respDecryptKeyRef'))}" placeholder="aesKey"/></div>
+    <div><label>签名算法 / 位置</label>
+      <div style="display:flex;gap:8px"><select id="a-sign">${opt(['NONE','HMAC_SHA256','MD5','MD5_SALT'], co('signType')||'NONE')}</select>
+      <select id="a-signplace">${opt(['HEADER','BODY'], co('signPlace')||'HEADER')}</select></div></div>
+    <div><label>签名密钥引用名</label><input id="a-signkey" value="${esc(co('signKeyRef'))}" placeholder="hmacKey"/></div>
+    <div><label>签名字段/头名</label><input id="a-signfield" value="${esc(co('signField')||'X-Sign')}"/></div>
+  </div>
+  <div style="margin-top:14px"><label>返回值映射（每行一条：路径 => 回填字段 [类型] [+msg]；回填进单据 ext，后续规则/后续步骤可直接用）</label>
+    <textarea id="a-returns">${esc((v.returns||[]).map(r => r.respPath + ' => ' + r.targetField + ' ' + r.targetType + (r.asMessage === 1 ? ' +msg' : '')).join('; '))}</textarea></div>
+  <div id="env-domain" style="display:none;margin-top:14px">
+    <div class="sub">环境域名（当前环境：<b>${esc(DOMAINS.currentEnv||'dev')}</b>，由规则引擎配置 rule-http.env 决定；同域名键在不同环境可配不同真值）</div>
+    <table style="margin-top:8px"><thead><tr><th>域名键</th><th>环境</th><th>真实域名</th><th></th></tr></thead><tbody>
+      ${(DOMAINS.domains||[]).map(x => `<tr><td><code>${esc(x.domain_key)}</code></td><td>${esc(x.env)}</td><td>${esc(x.base_url)}</td><td></td></tr>`).join('')}
+      <tr><td><input id="dm-key" value="${esc(co('domainKey'))}" placeholder="mock"/></td>
+          <td><input id="dm-env" value="${esc(DOMAINS.currentEnv||'dev')}"/></td>
+          <td><input id="dm-url" placeholder="https://api-test.xxx.com"/></td>
+          <td><button onclick="saveDomain()">保存</button></td></tr>
+    </tbody></table>
+    <div class="msg" id="msg-domain"></div>
+  </div>
+  <div style="margin-top:14px"><button class="pri" onclick="saveAction()">保存接口</button>
+    <button onclick="toggleNew('new-action')">取消</button>
+    <div class="sub" style="margin-top:8px">密钥真值不在这里填，只填引用名；真值放 application.yml 的 rule-http.secrets。</div></div>
+  <div class="msg" id="msg-action"></div>`;
+}
+
+function actionDetail(code) {
+  const a = ACTIONS.find(x => x.actionCode === code);
+  if (!a) return card('接口不存在', '', '', '<div class="empty">找不到 ' + esc(code) + '</div>');
+  const item = REFS.actions[code] || {};
+  const scope = item.universal ? '通用（所有单据）' : ((item.scope||[]).join(', ') || '通用');
+  const rets = (a.returns||[]).map(r => `<tr><td><code>${esc(r.respPath)}</code></td><td><code>ext[${esc(r.targetField)}]</code></td>
+      <td>${esc(r.targetType)}</td><td>${r.asMessage === 1 ? '同时加消息' : '-'}</td></tr>`).join('');
+  const enc = k => (!k || k === 'NONE') ? '<span class="tag">未启用</span>' : `<span class="tag g">${esc(k)}</span>`;
+  const kw = k => k ? `<code>${esc(k)}</code>` : '-';
+  const delBtn = item.refCount > 0
+    ? `<button disabled title="被引用中">删除接口</button>`
+    : `<button class="danger" onclick="removeAction('${esc(code)}')">删除接口</button>`;
+  return `<div class="crumb"><a href="#/actions">接口</a> / ${esc(a.actionName)}</div>` +
+    card(`${esc(a.actionName)} <code>${esc(a.actionCode)}</code>`, '接口详情：请求地址、入参模板、返回值映射、认证与加解密',
+      `${delBtn}<button onclick="fillActionForm('${esc(code)}')">编辑</button><button onclick="toggleNew('edit-action')">+ 新建接口</button>`,
+      `<div class="kv">
+         <div class="k">分类</div><div>${esc(a.actionCategory||'未分类')}</div>
+         <div class="k">适用范围</div><div><span class="tag w">${esc(scope)}</span> <span class="sub">留空=通用；多选=限定</span></div>
+         <div class="k">被引用</div><div>${refBadge('action', code)}</div>
+       </div>
+       <div class="stepbar" style="margin-top:16px"><span class="stepno">1</span><b>请求</b></div>
+       <div class="kv">
+         <div class="k">请求地址</div><div><code>${esc(a.method)}</code> <code>${esc(a.domainKey)}${esc(a.path)}</code></div>
+         <div class="k">超时</div><div>${a.timeoutMs} ms</div>
+         <div class="k">额外请求头</div><div><code>${esc(a.headersJson || '-')}</code></div>
+       </div>
+       <div class="sub" style="margin-top:10px">入参模板 bodyTemplate</div>
+       <pre>${esc(a.bodyTemplate || '(空)')}</pre>
+       ${templateHint(a.bodyTemplate)}
+       <div class="stepbar" style="margin-top:16px"><span class="stepno">2</span><b>认证与安全</b></div>
+       <div class="kv">
+         <div class="k">认证</div><div>${a.authCode ? `<span class="tag g">${esc(a.authCode)}</span>` : '<span class="tag">未配置</span>'}</div>
+         <div class="k">请求体加密</div><div>${enc(a.reqEncrypt)} ${kw(a.reqEncryptKeyRef)}</div>
+         <div class="k">响应体解密</div><div>${enc(a.respDecrypt)} ${kw(a.respDecryptKeyRef)}</div>
+         <div class="k">签名</div><div>${enc(a.signType)} ${a.signType && a.signType !== 'NONE' ? esc(a.signPlace||'HEADER') + ' / ' + esc(a.signField||'X-Sign') + ' ' + kw(a.signKeyRef) : ''}</div>
+       </div>
+       <div class="stepbar" style="margin-top:16px"><span class="stepno">3</span><b>返回值 → 单据 ext</b></div>
+       ${rets ? `<table><thead><tr><th>响应路径</th><th>回填到</th><th>类型</th><th>消息</th></tr></thead><tbody>${rets}</tbody></table>`
+              : '<div class="sub">未配置返回值映射（接口结果不会回填，后续规则/步骤拿不到）</div>'}
+       <div class="stepbar" style="margin-top:16px"><span class="stepno">4</span><b>试调用</b></div>
+       <div class="grid"><div style="grid-column:span 3"><label>用一段单据报文试跑这个接口</label>
+         <textarea id="t-fact" placeholder='{"bizId":"T-1"}'>{"bizId":"T-1"}</textarea></div></div>
+       <div style="margin-top:10px"><button onclick="testAction('${esc(code)}')">试调用</button>
+         <pre id="t-out" style="display:none"></pre>
+         <div class="msg" id="msg-test"></div></div>
+       <div id="edit-action" style="display:none" class="stepcard" style="margin-top:14px">${actionForm(a)}</div>`);
+}
+
+/* ============ ③ 规则类型：列表 + 详情（含步骤编排） ============ */
+const isStepType = t => /^step\d+Action$/.test((t.fields||[]).map(f => f.fieldKey).join(',')) || (t.templateBody||'').indexOf('@RULE@') >= 0;
+
+function typesList() {
+  const rows = TYPES.map(t => {
+    const n = RULES.filter(r => r.ruleType === t.ruleType).length;
+    const stepType = isStepType(t);
+    return `<tr class="row" onclick="location.hash='#/types/${esc(t.ruleType)}'">
+      <td><div class="title">${esc(t.typeName)}</div><div class="sub"><code>${esc(t.ruleType)}</code> ｜ 分组 ${esc(t.ruleGroup||'-')}</div></td>
+      <td>${stepType ? '<span class="tag b">步骤链</span>' : '<span class="tag">单条件</span>'}
+          <div class="sub">${(t.fields||[]).length} 个参数</div></td>
+      <td>${n} 条规则${t.builtin ? ' <span class="tag">内置</span>' : ''}</td>
+      <td style="text-align:right"><button onclick="event.stopPropagation();location.hash='#/types/${esc(t.ruleType)}'">查看</button></td>
+    </tr>`;
+  }).join('');
+  return card('规则类型', '规则类型 = 一条 DRL 模板 + 一组参数。步骤链模式下，每一步「是否需要调接口、调哪个接口」都在这里定，后续步骤可直接引用前面接口回填的值',
+    `<button class="pri" onclick="location.hash='#/types/new'">+ 新建规则类型</button>`,
+    rows ? `<table><thead><tr><th style="width:40%">类型</th><th style="width:18%">模式</th><th>规则数</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+         : '<div class="empty">还没有规则类型</div>');
+}
+
+function typeDetail(code) {
+  const t = TYPES.find(x => x.ruleType === code);
+  if (!t) return card('规则类型不存在', '', '', '<div class="empty">找不到 ' + esc(code) + '</div>');
+  const mine = RULES.filter(r => r.ruleType === code);
+  const stepType = isStepType(t);
+  const stepPanel = stepType ? `<div id="steps-box"><div class="sub">加载步骤链…</div></div>` : '';
+  const ruleRows = mine.map(r => `<tr>
+      <td><div class="title">${esc(r.ruleName)}</div><div class="sub">v${r.version} ｜ ${r.status === 1 ? '<span class="tag g">生效</span>' : '<span class="tag">草稿</span>'}</div></td>
+      <td><code>${esc(r.ruleParams||'{}')}</code></td>
+      <td style="text-align:right">
+        <button class="ghost" onclick="showDrl(${r.id})">看 DRL</button>
+        <button class="ghost" onclick="toggleRule(${r.id},${r.status === 1 ? 0 : 1})">${r.status === 1 ? '停用' : '启用'}</button>
+        <button class="ghost" onclick="delRule(${r.id})">删除</button>
+      </td></tr>`).join('');
+  return `<div class="crumb"><a href="#/types">规则类型</a> / ${esc(t.typeName)}</div>` +
+    card(`${esc(t.typeName)} <code>${esc(t.ruleType)}</code>`, stepType ? '步骤链：每一步判断/调接口/写字段，前一步接口回填的值（ext）可直接被后面步骤引用' : '单条件单动作类型',
+      `<button onclick="toggleNew('new-rule')">+ 新建规则</button>`,
+      `<div class="kv">
+         <div class="k">分组</div><div>${esc(t.ruleGroup||'-')}</div>
+         <div class="k">内置/自定义</div><div>${t.builtin ? '内置（系统维护）' : '自定义'}</div>
+         <div class="k">参数</div><div>${(t.fields||[]).map(f => `<span class="tag b">${esc(f.fieldName)} <code>${esc(f.fieldKey)}</code>${f.defaultValue ? ' 默认=' + esc(f.defaultValue) : ''}</span>`).join(' ') || '-'}</div>
+       </div>${stepPanel}
+       <div id="new-rule" style="display:none" class="stepcard" style="margin-top:14px">
+         <div class="grid">
+           <div><label>规则名（唯一）</label><input id="r-name" placeholder="${esc(code)}_1"/></div>
+           ${(t.fields||[]).map(f => `<div><label>${esc(f.fieldName)}</label>${paramInput(f)}</div>`).join('')}
+         </div>
+         <div style="margin-top:12px"><button class="pri" onclick="createRule('${esc(code)}')">保存并发布</button>
+           <button onclick="toggleNew('new-rule')">取消</button></div>
+         <div class="msg" id="msg-rule"></div>
+       </div>`)
+    + card('该类型下的规则', '改参数 → 重新发布即生效（不用重启）',
+      '', ruleRows ? `<table><thead><tr><th style="width:32%">规则</th><th>参数</th><th></th></tr></thead><tbody>${ruleRows}</tbody></table>`
+                  : '<div class="empty">还没有规则，点右上「+ 新建规则」</div>')
+    + card('试算', '用一段单据报文跑一遍引擎：能看到命中哪些规则、接口回填了什么、每步消息',
+      `<button onclick="probe('${esc(code)}')">试算</button>`,
+      `<div class="grid" style="margin-top:12px"><div style="grid-column:span 3">
+         <label>单据报文</label><textarea id="p-fact">{"skuCode":"SKU-1","skuName":"羽绒服","price":100,"cost":65}</textarea></div></div>
+       <div class="grid" style="margin-top:10px"><div><label>单据编码 docCode</label><input id="p-doc" value="SKU"/></div></div>
+       <div class="msg" id="msg-probe"></div><pre id="p-out" style="display:none"></pre>`);
+}
+
+function paramInput(f) {
+  if (/^step\d+Action$/.test(f.fieldKey)) {
+    return `<select id="rp-${esc(f.fieldKey)}">${ACTIONS.map(a => `<option value="${esc(a.actionCode)}"${a.actionCode === f.defaultValue ? ' selected' : ''}>${esc(a.actionName)}（${esc(a.actionCode)}）</option>`).join('')}</select>`;
+  }
+  if (f.enumOptions) {
+    return `<select id="rp-${esc(f.fieldKey)}">${String(f.enumOptions).split(',').map(o => `<option${o.trim() === f.defaultValue ? ' selected' : ''}>${esc(o.trim())}</option>`).join('')}</select>`;
+  }
+  return `<input id="rp-${esc(f.fieldKey)}" value="${esc(f.defaultValue == null ? '' : f.defaultValue)}"/>`;
+}
+function paramValues(ruleType) {
+  const t = TYPES.find(x => x.ruleType === ruleType) || {};
+  const o = {};
+  (t.fields||[]).forEach(f => { const el = $('rp-' + f.fieldKey); if (el) o[f.fieldKey] = f.fieldType === 'NUMBER' ? Number(el.value) : el.value; });
+  return o;
+}
+
+/* ============ ③ 新建规则类型：步骤链编辑器 ============ */
+let ED = {steps: []};
+const ACTION_KINDS = [['CALL','调接口'],['SET_EXT','写单据字段'],['MARK','打标（true）'],['MSG','只加消息']];
+
+function typeEditor() {
+  return card('新建规则类型', '一行一步：先判条件，再决定这一步要不要调接口、调哪个接口；接口的回填值会自动暴露给后续步骤',
+    `<button onclick="previewType()">预览 DRL</button><button class="pri" onclick="saveType()">保存类型</button>`,
+    `<div class="grid">
+       <div><label>类型编码 ruleType</label><input id="t-code" placeholder="SKU_APPROVAL_3STEP"/></div>
+       <div><label>类型名称</label><input id="t-name" placeholder="商品审批链路"/></div>
+       <div><label>绑定单据（通用单据载体 DocFact）</label><select id="t-doc">${DOCS.map(d => `<option value="${esc(d.docCode)}">${esc(d.docName)}（${esc(d.docCode)}）</option>`).join('')}</select></div>
+       <div><label>分组</label><input id="t-group" value="approval"/></div>
+       <div><label>排序</label><input id="t-sort" value="60"/></div>
+     </div>
+     <div class="stepbar" style="margin-top:18px"><span class="stepno" style="background:#0f172a">≡</span><b>步骤链</b>
+       <span class="sub">按从上到下执行</span>
+       <span style="margin-left:auto"><button onclick="addStep()">+ 添加步骤</button></span></div>
+     <div id="ed-steps"></div>
+     <div id="ed-preview"></div>
+     <div class="msg" id="msg-type"></div>`);
+}
+
+function docFieldOptions(docCode, cur) {
+  const d = DOCS.find(x => x.docCode === docCode);
+  const out = ['<option value="">（无条件：任何单据都执行）</option>'];
+  const walk = (nodes) => (nodes || []).forEach(o => {
+    (o.fields || []).forEach(f => out.push(`<option value="${esc(f.fieldKey)}"${f.fieldKey === cur ? ' selected' : ''}>${esc(f.fieldName)}（${esc(f.fieldKey)}）</option>`));
+    walk(o.children);
+  });
+  walk(d && d.tree);
+  return out.join('');
+}
+function refVars(stepIdx) {
+  const vars = [];
+  ED.steps.slice(0, stepIdx).forEach(s => {
+    if (s.actionType === 'CALL') {
+      const a = ACTIONS.find(x => x.actionCode === s.actionCode);
+      (a && a.returns || []).forEach(r => vars.push(r.targetField));
+    } else if (s.extField) { vars.push(s.extField); }
+  });
+  return vars;
+}
+function addStep() {
+  ED.steps.push({stepName:'', condField:'', condOp:'>=', condType:'NUMBER', condValue:'', actionType:'CALL', actionCode:(ACTIONS[0]||{}).actionCode||'', extField:'', extValue:'', message:''});
+  renderSteps();
+}
+function removeStep(i) { ED.steps.splice(i, 1); renderSteps(); }
+function setStep(i, k, v) { ED.steps[i][k] = v; if (k === 'actionType' || k === 'actionCode' || k === 'condField') renderSteps(); }
+
+const PARAM_CACHE = {};
+/** 该步骤的绑定里，哪些参数名在接口模板中不存在 → 会静默失效，必须提示出来 */
+function uselessBindings(i) {
+  const s = ED.steps[i] || {};
+  const p = PARAM_CACHE[s.actionCode];
+  const tpl = (p && p.bodyTemplate) || '';
+  const bad = [];
+  String(s.paramText || '').split('\n').map(l => l.trim()).filter(Boolean).forEach(line => {
+    const key = line.split('=')[0].trim();
+    if (!key || key === '_headers') return;
+    if (!tpl.includes('${' + key + '}')) bad.push(key);
+  });
+  return bad;
+}
+async function loadActionParams(i, code) {
+  const el = document.getElementById('ap-' + i); if (!el || !code) return;
+  let p = PARAM_CACHE[code];
+  if (!p) {
+    try { p = await api('rule/http/action/' + code + '/params'); PARAM_CACHE[code] = p; }
+    catch (e) { el.textContent = '读取接口参数失败：' + e.message; return; }
+  }
+  const names = (p.placeholders || []).map(x => x.name);
+  const bad = uselessBindings(i);
+  let html = names.length
+    ? `该接口声明的参数（按名字绑值才生效）：${names.map(n => `<code>${esc(n)}</code>`).join('、')}`
+    : '该接口模板里没有「逻辑参数名」（它把取值直接写成了上下文路径），所以在这里绑任何参数名都不会生效';
+  if (bad.length) {
+    html += `<div class="tag r" style="margin-top:6px">⚠ 这几条绑定不会生效：${bad.map(b => esc(b)).join('、')} ——
+      接口模板里找不到 <code>${'${' + esc(bad[0]) + '}'}</code>${names.length ? '' : '（模板用的是上下文路径）'}。
+      要么把接口模板的取值改成 <code>"${'${' + esc(bad[0]) + '}"'}</code> 再由这里绑值，要么删掉这几行。</div>`;
+  }
+  el.innerHTML = html;
+}
+function extFieldOptions(docCode, cur) {
+  const d = DOCS.find(x => x.docCode === docCode);
+  const groups = [];
+  const walk = (nodes, path) => (nodes || []).forEach(o => {
+    const label = (path ? path + ' → ' : '') + o.objectName + ' ' + o.objectKey;
+    const opts = (o.fields || []).map(f => `<option value="${esc(f.fieldKey)}"${f.fieldKey === cur ? ' selected' : ''}>${esc(f.fieldName)}（${esc(f.fieldKey)}）</option>`).join('');
+    if (opts) groups.push(`<optgroup label="${esc(label)}">${opts}</optgroup>`);
+    walk(o.children, label);
+  });
+  walk(d && d.tree, '');
+  return (cur && !groups.includes('value="' + cur + '"') ? `<option value="${esc(cur)}" selected>${esc(cur)}（当前）</option>` : '') + groups.join('');
+}
+function linesToJson(text) {
+  if (!text || !text.trim()) return '';
+  const o = {};
+  text.split('\n').forEach(line => {
+    const idx = line.indexOf('=');
+    if (idx <= 0) return;
+    const k = line.slice(0, idx).trim();
+    let v = line.slice(idx + 1).trim();
+    if (v === 'true' || v === 'false') o[k] = (v === 'true');
+    else if (/^-?\d+(\.\d+)?$/.test(v)) o[k] = Number(v);
+    else o[k] = v;
+  });
+  return Object.keys(o).length ? JSON.stringify(o) : '';
+}
+
+/* 模板里的占位符分类提示（不拦截，只提示）：逻辑参数名 = 规则侧绑值；上下文路径 = 接口自带默认取值 */
+const CTX_KEYS = ['orderId','totalAmount','discount','shippingFee','finalAmount','customer','items','product',
+                  'skuCode','price','cost','docCode','bizId','ext','fact','procInstId'];
+function templateHint(tpl) {
+  const raw = (tpl || '').match(/\$\{[A-Za-z0-9_.\u4e00-\u9fa5]+/g) || [];
+  const names = [...new Set(raw.map(s => s.slice(2)))];
+  if (!names.length) return '';
+  const isCtx = n => CTX_KEYS.some(k => n === k || n.startsWith(k + '.'));
+  const logical = names.filter(n => !isCtx(n));
+  const ctx = names.filter(isCtx);
+  return `<div class="sub" style="margin-top:6px">
+    ${logical.length ? `逻辑参数名（<b>规则侧逐个绑值</b>）：${logical.map(n => `<span class="tag b">${esc(n)}</span>`).join(' ')}` : ''}
+    ${ctx.length ? `${logical.length ? '｜' : ''}上下文路径（作为接口自带默认取值，<b>不拦截</b>）：${ctx.map(n => `<span class="tag w">${esc(n)}</span>`).join(' ')}` : ''}
+    ${logical.length ? `<div class="tag r" style="margin-top:6px">提示：该接口按逻辑参数名收参，只能被「步骤链」类型的规则调用（经典类型的规则没有绑定入口，直接调会发 null）</div>` : ''}
+  </div>`;
+}
+
+/* ============ 单步试算（先「保存类型」，再试算某一步） ============ */
+const SAMPLE = {
+  SKU: '{"skuCode":"SKU-9001","price":100,"cost":65}',
+  ORDER: '{"orderId":"SO-DEMO-1","totalAmount":30000,"customer":{"level":"VIP","region":"华东","age":30,"newCustomer":false},"items":[{"product":{"id":1,"name":"服务器","category":"电子产品","price":15000.0,"stock":10,"onShelf":true},"quantity":2,"subtotal":30000.0}]}',
+  WF: '{}'
+};
+function probeStep(i) {
+  const box = $('st-' + i); if (!box) return;
+  const doc = ($('t-doc') || {}).value || '';
+  const s = ED.steps[i];
+  box.style.display = 'block';
+  box.innerHTML = `<div class="flow"><b>试算第 ${i + 1} 步</b>
+    <span class="sub">（用一份样例单据真实调一次接口，看「入参渲染成什么」和「返回值回填进上下文的键值」；先点右上角「保存类型」，否则读到的还是上一次的步骤）</span>
+    <textarea id="pt-${i}" style="margin-top:6px;min-height:70px">${esc(s._sample || SAMPLE[doc] || '{}')}</textarea>
+    <div style="margin-top:6px"><button class="pri" onclick="runProbe(${i})">运行这一步</button>
+      <span class="sub">只调这一步，不会改动引擎里已发布的规则</span></div>
+    <div id="pt-out-${i}"></div></div>`;
+}
+async function runProbe(i) {
+  const s = ED.steps[i], out = $('pt-out-' + i);
+  const sample = ($('pt-' + i) || {}).value || '{}';
+  s._sample = sample;
+  let fact;
+  try { fact = JSON.parse(sample); }
+  catch (e) { out.innerHTML = '<div class="tag r">样例单据不是合法 JSON：' + esc(e.message) + '</div>'; return; }
+  out.innerHTML = '<div class="sub">运行中…</div>';
+  try {
+    const r = await post('rule/type/step/test', {
+      ruleType: ($('t-code') || {}).value, stepNo: i + 1, docCode: ($('t-doc') || {}).value, fact: fact
+    });
+    const c = r.cond || {};
+    const condHtml = c.field
+      ? `<div class="kv"><div class="k">本步条件</div><div><code>${esc(c.field)} ${esc(c.op)} ${esc(c.expect)}</code> ｜ 样例里实际值 = <b>${esc(String(c.actual))}</b> ｜
+         ${c.pass ? '<span class="tag g">满足 → 这一步会执行</span>' : '<span class="tag r">不满足 → 这一步不会执行</span>'}</div></div>`
+      : `<div class="sub">${esc(c.note || '本步无条件')}</div>`;
+    const extKeys = Object.keys(r.ext || {});
+    out.innerHTML = `<div class="kv" style="margin-top:8px">
+      <div class="k">接口</div><div><code>${esc(r.actionCode || '(未选接口)')}</code> ${r.stepName ? esc(r.stepName) : ''}
+        ${r.success === false ? '<span class="tag r">调用失败</span>' : (r.success === true ? '<span class="tag g">调用成功</span>' : '')}</div>
+      <div class="k">请求地址</div><div><code>${esc(r.requestUrl || '-')}</code></div>
+      <div class="k">参数绑定</div><div><code>${esc(r.paramJson || '(未绑定，用接口模板默认取值)')}</code></div>
+      <div class="k">耗时</div><div>${r.costMs == null ? '-' : r.costMs + ' ms'}</div>
+    </div>
+    ${condHtml}
+    <div class="sub" style="margin-top:8px">实际发出的入参（规则上下文求值后）</div>
+    <pre>${esc(r.renderedBody || '(空)')}</pre>
+    <div class="sub">接口响应（原始返回）</div>
+    <pre>${esc((r.responseBody || '(空)').slice(0, 600))}</pre>
+    <div class="sub">返回后回填进上下文（下一步可用 ${'${ext.'}键名${'}'} 引用）</div>
+    ${extKeys.length
+      ? `<table><thead><tr><th>上下文键</th><th>值</th><th>下一步引用</th></tr></thead><tbody>
+          ${extKeys.map(k => `<tr><td>ext[<b>${esc(k)}</b>]</td><td>${esc(String(r.ext[k]))}</td><td><code>${esc('${ext.' + k + '}')}</code></td></tr>`).join('')}</tbody></table>`
+      : '<div class="tag w">没有回填任何东西：要么响应不是 JSON，要么该接口在 ② 里没配「返回值映射」</div>'}
+    ${(r.messages || []).length ? `<div class="sub" style="margin-top:8px">消息：${(r.messages || []).map(m => esc(m)).join('｜')}</div>` : ''}`;
+  } catch (e) {
+    out.innerHTML = '<div class="tag r">试算失败：' + esc(e.message) + '</div>';
+  }
+}
+
+function renderSteps() {
+  const box = $('ed-steps'); if (!box) return;
+  const doc = ($('t-doc') || {}).value || '';
+  box.innerHTML = ED.steps.map((s, i) => {
+    const a = ACTIONS.find(x => x.actionCode === s.actionCode);
+    const vars = refVars(i);
+    return `<div class="stepcard">
+      <div class="stepbar"><span class="stepno">${i + 1}</span>
+        <input value="${esc(s.stepName)}" oninput="setStep(${i},'stepName',this.value)" placeholder="步骤名，如 查审批人" style="max-width:230px"/>
+        <span style="margin-left:auto"><button onclick="probeStep(${i})">试算这一步</button><button class="ghost danger" onclick="removeStep(${i})">删除这步</button></span></div>
+      <div id="st-${i}" style="display:none"></div>
+      <div class="grid">
+        <div><label>条件字段（留空=本步无条件）</label><select onchange="setStep(${i},'condField',this.value)">${docFieldOptions(doc, s.condField)}</select></div>
+        <div><label>运算符</label><select onchange="setStep(${i},'condOp',this.value)">${['>','>=','<','<=','==','!='].map(o => `<option${o === s.condOp ? ' selected' : ''}>${o}</option>`).join('')}</select></div>
+        <div><label>取值类型 / 取值（取值是该步的参数，可在规则里改）</label>
+          <div style="display:flex;gap:8px"><select onchange="setStep(${i},'condType',this.value)" style="max-width:110px">
+            ${['NUMBER','ENUM','STRING'].map(o => `<option${o === s.condType ? ' selected' : ''}>${o}</option>`).join('')}</select>
+            <input value="${esc(s.condValue)}" oninput="setStep(${i},'condValue',this.value)" placeholder="0.30"/></div></div>
+        <div><label>这一步做什么</label><select onchange="setStep(${i},'actionType',this.value)">
+          ${ACTION_KINDS.map(([v,l]) => `<option value="${v}"${v === s.actionType ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
+        ${s.actionType === 'CALL' ? `<div><label>调用哪个接口（从接口列表选）</label><select onchange="setStep(${i},'actionCode',this.value)">
+            ${ACTIONS.map(x => `<option value="${esc(x.actionCode)}"${x.actionCode === s.actionCode ? ' selected' : ''}>${esc(x.actionName)}（${esc(x.actionCode)}）</option>`).join('')}</select></div>` : ''}
+        ${s.actionType === 'SET_EXT' || s.actionType === 'MARK' ? `<div><label>写到哪个字段（来自单据注册的字段，多级对象可选）</label>
+            <select onchange="setStep(${i},'extField',this.value)">${extFieldOptions(doc, s.extField)}</select>
+            <input style="margin-top:6px" value="${esc(s.extField)}" oninput="setStep(${i},'extField',this.value)" placeholder="或手填自定义 key，如 approvalLevel"/></div>` : ''}
+        ${s.actionType === 'CALL' ? `<div style="grid-column:span 3"><label>参数绑定：参数名 = 规则上下文取值（每行一条）</label>
+            <textarea oninput="setStep(${i},'paramText',this.value);loadActionParams(${i},this.closest('.stepcard')?ED.steps[${i}].actionCode:'')" placeholder="bizId = ${'${orderId}'}&#10;amount = ${'${totalAmount} * 0.01'}&#10;channel = 规则引擎">${esc(s.paramText || '')}</textarea>
+            <div class="sub" id="ap-${i}">正在读取该接口声明的参数…</div>
+            <div class="sub">取值可写：单据字段 ${'${orderId}'} / 嵌套路径 ${'${customer.level}'} / 表达式 ${'${totalAmount * 0.01}'} / 集合大小 ${'${items.size()}'} / 上一步回填 ${'${ext.approverId}'} / 常量（直接写文字）。留空 = 用接口模板里的默认取值。</div></div>` : ''}
+        ${s.actionType === 'SET_EXT' ? `<div><label>写入的取值</label><input value="${esc(s.extValue)}" oninput="setStep(${i},'extValue',this.value)" placeholder="L2"/></div>` : ''}
+        <div><label>本步消息文案（可空，自动生成）</label><input value="${esc(s.message)}" oninput="setStep(${i},'message',this.value)" placeholder="毛利率达 ${'${step' + (i+1) + 'Value}'}，走 +2 级领导"/></div>
+      </div>
+      ${s.actionType === 'CALL' && a ? `<div class="flow">
+        <b>入参</b>（② 接口注册的模板 + 上面绑定的值）：<code>${esc(a.bodyTemplate || '(空)')}</code>
+        <div style="margin-top:8px"><b>返回值处理</b>（在 ② 接口注册的「返回值映射」里配，本步自动生效，不需要写代码）
+          ${(a.returns || []).length
+            ? `<table style="margin-top:6px"><thead><tr><th>响应路径</th><th>写入上下文</th><th>类型</th><th>消息</th></tr></thead><tbody>
+                ${(a.returns || []).map(r => `<tr><td><code>${esc(r.respPath)}</code></td><td>ext[<b>${esc(r.targetField)}</b>]</td><td>${esc(r.targetType)}</td><td>${r.asMessage === 1 ? '同时加一条消息' : '-'}</td></tr>`).join('')}
+              </tbody></table>
+              <div class="sub" style="margin-top:6px">下一步就这样引用：
+                ${(a.returns || []).map(r => `<code>${'${ext.' + esc(r.targetField) + '}'}</code>`).join(' ')}
+                —— 写在下一步的条件取值、参数绑定或接口模板里都行；生成器会给下一步自动加 <code>ext["键名"] != null</code> 守卫，数据没回来就不会执行。</div>`
+            : '<div class="tag w" style="margin-top:6px">该接口没配返回值映射 → 调用结果不会进上下文，下一步拿不到它的数据</div>'}
+          <div style="margin-top:8px"><a class="lnk" href="#/actions/${esc(a.actionCode)}">去接口注册里改这个接口的返回值映射 →</a></div>
+        </div></div>` : ''}
+      ${vars.length ? `<div class="flow">这一步可以引用前面步骤的产品：${[...new Set(vars)].map(v => `<span class="tag g">ext.${esc(v)}</span>`).join(' ')}
+        <span class="sub">（写在条件取值或接口入参模板里，如 ${'${ext.' + [...new Set(vars)][0] + '}'}）</span></div>` : ''}
+    </div>`;
+  }).join('') || '<div class="empty">还没有步骤，点「+ 添加步骤」</div>';
+  ED.steps.forEach((s, i) => { if (s.actionType === 'CALL') loadActionParams(i, s.actionCode); });
+}
+
+function edBody() {
+  return {
+    ruleType: ($('t-code') || {}).value, typeName: ($('t-name') || {}).value,
+    ruleGroup: ($('t-group') || {}).value, sortOrder: Number(($('t-sort') || {}).value || 60),
+    factClass: 'DocFact', docCode: ($('t-doc') || {}).value,
+    steps: ED.steps.map(s => Object.assign({}, s, {paramJson: linesToJson(s.paramText)}))
+  };
+}
+async function previewType() {
+  try {
+    const r = await post('rule/type/build', edBody());
+    $('ed-preview').innerHTML = `<div class="sub" style="margin-top:14px">生成的 DRL（每步一条规则，salience 递减 + 「上游产物就绪」+「本步未执行」双守卫）</div><pre>${esc(r.drlPreview)}</pre>`
+      + `<div class="sub" style="margin-top:8px">这条类型发布出来的规则名会是 <code>&lt;规则名&gt;#1</code>、<code>#2</code>…；可配参数：${(r.fields||[]).map(f => `<span class="tag b">${esc(f.fieldKey)}</span>`).join(' ')}</div>`;
+    msg('msg-type', '预览成功，检查无误后点「保存类型」', 'ok');
+  } catch (e) { msg('msg-type', e.message, 'err'); }
+}
+async function saveType() {
+  try {
+    const b = edBody();
+    if (!b.ruleType || !b.typeName) throw new Error('类型编码和名称必填');
+    if (!ED.steps.length) throw new Error('至少要有一个步骤');
+    const r = await post('rule/type/save', b);
+    msg('msg-type', r.message, 'ok');
+    await loadCommon();
+    location.hash = '#/types/' + b.ruleType;
+  } catch (e) { msg('msg-type', e.message, 'err'); }
+}
+
+/* ============ 路由 ============ */
+let LOADED = false;
+function route() {
+  if (!LOADED) return;   // 数据没到位不渲染（浏览器加载带 hash 的地址会先触发一次 hashchange）
+  const h = location.hash.replace(/^#\/?/, '').split('/');
+  const view = $('view');
+  const top = h[0] || 'docs';
+  ['docs','actions','types'].forEach(k => { const el = $('tab-' + k); if (el) el.className = (k === top ? 'on' : ''); });
+  if (top === 'docs' && h[1]) view.innerHTML = docDetail(decodeURIComponent(h[1]));
+  else if (top === 'actions' && h[1]) view.innerHTML = actionDetail(decodeURIComponent(h[1]));
+  else if (top === 'types' && h[1] === 'new') { ED = {steps: []}; view.innerHTML = typeEditor(); addStep(); }
+  else if (top === 'types' && h[1]) { view.innerHTML = typeDetail(decodeURIComponent(h[1])); loadStepPanel(decodeURIComponent(h[1])); }
+  else if (top === 'actions') { view.innerHTML = actionsList(); fillAuthSelect(); fillCatSelect(''); }
+  else if (top === 'types') view.innerHTML = typesList();
+  else view.innerHTML = docsList();
+  return view;
+}
+async function refresh() { await loadCommon(); LOADED = true; route(); }
+
+/* ============ 步骤链展示 ============ */
+async function loadStepPanel(code) {
+  const box = $('steps-box'); if (!box) return;
+  try {
+    const r = await api('rule/type/steps?ruleType=' + encodeURIComponent(code));
+    const steps = r.steps || [];
+    if (!steps.length) { box.innerHTML = ''; return; }
+    const t = TYPES.find(x => x.ruleType === code) || {};
+    let html = `<div class="stepbar" style="margin-top:18px"><span class="stepno" style="background:#0f172a">≡</span><b>步骤链</b><span class="sub">按序号执行</span>
+      <span style="margin-left:auto" class="sub">每步：条件 → 动作（是否调接口/调哪个接口）→ 回填 ext → 后续步骤可引用</span></div>`;
+    for (const s of steps) {
+      const kind = {CALL:'调接口', SET_EXT:'写单据字段', MARK:'打标', MSG:'只加消息'}[s.actionType] || s.actionType;
+      const a = ACTIONS.find(x => x.actionCode === s.actionCode);
+      const cond = s.condField ? `<code>${esc(s.condField)} ${esc(s.condOp||'')} ${esc(s.condValue||'')}</code>` : '<span class="sub">无条件</span>';
+      html += `<div class="stepcard"><div class="stepbar"><span class="stepno">${s.stepNo}</span><b>${esc(s.stepName||'')}</b>
+          <span class="tag b">${esc(kind)}</span>${s.actionCode ? `<span class="tag g">${esc(s.actionCode)}</span>` : ''}
+        </div>
+        <div class="kv"><div class="k">条件</div><div>${cond}</div>
+          <div class="k">动作</div><div>${s.actionType === 'CALL' ? '调用接口 ' + esc(s.actionCode) : (s.actionType === 'SET_EXT' ? 'ext[' + esc(s.extField) + '] = ' + esc(s.extValue) : (s.actionType === 'MARK' ? 'ext[' + esc(s.extField) + '] = true' : '只加消息'))}</div>
+          ${a ? `<div class="k">入参模板</div><div><code>${esc(a.bodyTemplate||'(空)')}</code></div>
+                 <div class="k">回填 ext</div><div>${(a.returns||[]).map(x => `<span class="tag g">${esc(x.targetField)}</span>`).join(' ') || '<span class="tag w">未配返回值映射</span>'}</div>` : ''}
+          <div class="k">消息</div><div>${esc(s.message||'-')}</div></div></div>`;
+    }
+    box.innerHTML = html;
+  } catch (e) { box.innerHTML = '<div class="sub">步骤链读取失败：' + esc(e.message) + '</div>'; }
+}
+
+/* ============ 单据动作 ============ */
+async function saveDoc() {
+  try {
+    await post('rule/doc/save', {docCode:$('d-code').value.trim(), docName:$('d-name').value.trim(), remark:$('d-remark').value.trim()});
+    msg('msg-doc', '单据已登记', 'ok'); await refresh();
+  } catch (e) { msg('msg-doc', e.message, 'err'); }
+}
+async function removeDoc(code) {
+  try { const r = await del('rule/doc/' + encodeURIComponent(code)); msg('msg-doc', r.message, 'ok'); await refresh(); }
+  catch (e) { msg('msg-doc', e.message, 'err'); }
+}
+async function saveObj(docCode) {
+  try {
+    await post('rule/doc/object/save', {docCode:docCode, objectKey:$('o-key').value.trim(), objectName:$('o-name').value.trim(),
+      parentObjectKey:$('o-parent').value || null, isCollection:Number($('o-coll').value), valuePath:$('o-path').value.trim()});
+    msg('msg-obj', '对象已保存', 'ok'); await refresh();
+  } catch (e) { msg('msg-obj', e.message, 'err'); }
+}
+async function saveField(docCode, objectKey) {
+  const g = k => $('f-' + objectKey + '-' + k);
+  try {
+    await post('rule/doc/field/save', {docCode:docCode, objectKey:objectKey, fieldName:g('name').value.trim(),
+      fieldKey:g('key').value.trim(), fieldType:g('type').value, exampleValue:g('ex').value.trim(),
+      fieldDesc:g('desc').value.trim(), expr:g('expr').value.trim(), sortOrder:99});
+    msg('msg-f-' + objectKey, '字段已保存', 'ok'); await refresh();
+  } catch (e) { msg('msg-f-' + objectKey, e.message, 'err'); }
+}
+function loadFieldForm(docCode, objectKey, fieldKey) {
+  const d = DOCS.find(x => x.docCode === docCode);
+  let found = null;
+  const walk = ns => (ns||[]).forEach(o => { if (o.objectKey === objectKey) (o.fields||[]).forEach(f => { if (f.fieldKey === fieldKey) found = f; }); walk(o.children); });
+  walk(d && d.tree);
+  if (!found) return;
+  toggleNew('new-field-' + objectKey);
+  const g = k => $('f-' + objectKey + '-' + k);
+  g('name').value = found.fieldName; g('key').value = found.fieldKey; g('type').value = found.fieldType;
+  g('ex').value = found.exampleValue || ''; g('desc').value = found.fieldDesc || ''; g('expr').value = found.expr || '';
+}
+
+/* ============ 接口动作 ============ */
+async function addCategory() {
+  const name = prompt('新增接口分类名称（如：消息接口 / 对账接口）');
+  if (!name) return;
+  try { const r = await post('rule/http/category/save', {categoryName:name}); CATEGORIES = r.categories || CATEGORIES; fillCatSelect(''); msg('msg-action', r.message, 'ok'); }
+  catch (e) { msg('msg-action', e.message, 'err'); }
+}
+function fillCatSelect(current) {
+  const el = $('a-cat'); if (!el) return;
+  const cur = current || el.value;
+  el.innerHTML = CATEGORIES.map(c => `<option value="${esc(c.category_name)}"${c.category_name === cur ? ' selected' : ''}>${esc(c.category_name)}</option>`).join('');
+}
+async function fillAuthSelect() {
+  const el = $('a-auth'); if (!el) return;
+  try {
+    const auths = await api('rule/http/auths');
+    el.innerHTML = '<option value="">（不认证）</option>' + auths.map(a => `<option value="${esc(a.authCode)}">${esc(a.authName)}（${esc(a.authType)}）</option>`).join('');
+  } catch (e) {}
+}
+function fillActionForm(code) {
+  const a = ACTIONS.find(x => x.actionCode === code);
+  if (!a) return;
+  api('rule/http/action/' + encodeURIComponent(code) + '/scopes').then(sc => {
+    a._scopes = sc || [];
+    $('edit-action').innerHTML = actionForm(a);
+    fillAuthSelect();
+    if ($('a-auth')) $('a-auth').value = a.authCode || '';
+    toggleNew('edit-action');
+  }).catch(() => {});
+}
+function hintBody() {
+  const el = $('a-body-hint'); if (!el) return;
+  el.innerHTML = templateHint(($('a-body') || {}).value);
+}
+async function saveDomain() {
+  try {
+    const r = await post('rule/http/domain/save', {domainKey:$('dm-key').value.trim(), env:$('dm-env').value.trim(), baseUrl:$('dm-url').value.trim()});
+    DOMAINS = await api('rule/http/domains');
+    msg('msg-domain', r.message, 'ok');
+  } catch (e) { msg('msg-domain', e.message, 'err'); }
+}
+async function saveAction() {
+  try {
+    const code = $('a-code').value.trim();
+    const returns = $('a-returns').value.split(';').map(s => s.trim()).filter(Boolean).map((line, i) => {
+      const p = line.split('=>'); const right = (p[1] || '').trim().split(/\s+/);
+      return {respPath:(p[0]||'').trim(), targetField:right[0], targetType:(right[1]||'STRING').toUpperCase(),
+              asMessage: line.includes('+msg') || line.includes('+消息') ? 1 : 0, sortOrder:i+1};
+    });
+    await post('rule/http/action/save', {actionCode:code, actionName:$('a-name').value.trim(), actionCategory:$('a-cat').value,
+      docCode:'', method:$('a-method').value, paramIn:$('a-paramin').value,
+      domainKey:$('a-domain').value.trim(), path:$('a-path').value.trim(),
+      headersJson:$('a-headers').value.trim(), bodyTemplate:$('a-body').value, timeoutMs:Number($('a-timeout').value||2000),
+      authCode:$('a-auth').value, reqEncrypt:$('a-reqenc').value, reqEncryptKeyRef:$('a-reqkey').value.trim(),
+      respDecrypt:$('a-respdec').value, respDecryptKeyRef:$('a-respkey').value.trim(),
+      signType:$('a-sign').value, signKeyRef:$('a-signkey').value.trim(), signPlace:$('a-signplace').value, signField:$('a-signfield').value.trim()});
+    await post('rule/http/action/' + encodeURIComponent(code) + '/returns', returns);
+    const sc = Array.from(($('a-scopes')||{selectedOptions:[]}).selectedOptions || []).map(o => o.value);
+    await post('rule/http/action/' + encodeURIComponent(code) + '/scopes', sc);
+    msg('msg-action', '接口已保存', 'ok'); await refresh();
+  } catch (e) { msg('msg-action', e.message, 'err'); }
+}
+async function removeAction(code) {
+  try { const r = await del('rule/http/action/' + encodeURIComponent(code)); msg('msg-action', r.message, 'ok'); await refresh(); }
+  catch (e) { msg('msg-action', e.message, 'err'); }
+}
+async function testAction(code) {
+  try {
+    const fact = JSON.parse(($('t-fact')||{}).value || '{}');
+    const r = await post('rule/http/action/' + encodeURIComponent(code) + '/test', fact);
+    msg('msg-test', '调用完成', 'ok');
+    const out = $('t-out'); if (out) { out.style.display = 'block'; out.textContent = JSON.stringify(r, null, 2); }
+  } catch (e) { msg('msg-test', e.message, 'err'); }
+}
+
+/* ============ 规则动作 ============ */
+async function createRule(ruleType) {
+  try {
+    const params = paramValues(ruleType);
+    const name = $('r-name').value.trim();
+    if (!name) throw new Error('规则名必填');
+    const r = await post('rule/create', {ruleName:name, ruleType:ruleType, ruleParams:JSON.stringify(params)});
+    await post('rule/publish/' + r.id, params);
+    msg('msg-rule', '已保存并发布：' + name, 'ok');
+    await refresh();
+  } catch (e) { msg('msg-rule', e.message, 'err'); }
+}
+async function toggleRule(id, status) {
+  try { await post('rule/status/' + id, {status: status}); await refresh(); } catch (e) { alert(e.message); }
+}
+async function delRule(id) {
+  try { await api('rule/' + id, {method:'DELETE'}); await refresh(); } catch (e) { alert(e.message); }
+}
+async function showDrl(id) {
+  const r = RULES.find(x => x.id === id);
+  if (!r) return;
+  const box = document.createElement('div');
+  box.className = 'card';
+  box.innerHTML = `<div class="head"><h2>${esc(r.ruleName)} 的 DRL</h2><div class="acts"><button onclick="this.closest('.card').remove()">关闭</button></div></div><pre>${esc(r.drlContent || '(空)')}</pre>`;
+  $('view').prepend(box);
+}
+async function probe(ruleType) {
+  try {
+    const doc = ($('p-doc')||{}).value;
+    const fact = JSON.parse(($('p-fact')||{}).value || '{}');
+    const r = await post('rule/evaluate?docCode=' + encodeURIComponent(doc), fact);
+    msg('msg-probe', '命中 ' + (r.fired == null ? '?' : r.fired) + ' 条规则', 'ok');
+    const out = $('p-out');
+    if (out) {
+      out.style.display = 'block';
+      const ext = r.ext || {};
+      out.textContent = '单据数据：' + JSON.stringify(r.data) + '\n\n回填 ext：' + JSON.stringify(ext, null, 2)
+        + '\n\n消息：\n' + (r.messages||[]).map(m => '· ' + m).join('\n');
+    }
+  } catch (e) { msg('msg-probe', e.message, 'err'); }
+}
+
+
+loadCommon().then(() => { LOADED = true; route(); }).catch(e => $('view').innerHTML = '<div class="card">初始化失败：' + esc(e.message) + '</div>');
+window.addEventListener('hashchange', route);
+</script>
+</body>
+</html>

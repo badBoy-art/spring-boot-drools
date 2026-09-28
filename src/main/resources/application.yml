@@ -14,3 +14,24 @@ logging:
   level:
     root: info
     com.example.drools: debug
+
+# 规则里的 HTTP 动作：域名按 key 配置（各环境不同，别写进规则参数）+ 密钥库 + 默认超时 + 失败策略
+rule-http:
+  # 当前环境：域名从库里 rule_http_domain(domain_key, env) 取，按这个环境解析；库里没有再回落下面的 domains
+  env: dev
+  domains:
+    mock: http://localhost:8080/mock          # 本机演示用的假接口
+    # risk: https://risk.dev.example.com      # 真实风控（dev）
+    # risk: https://risk.example.com          # 真实风控（prod）
+  # ↑ 密钥库：库里/规则参数里只存引用名（如 jwtSecret），真值只在这里。
+  #   生产建议放 Nacos 加密配置 / K8s Secret / 环境变量（RULE_HTTP_SECRETS_JWTSECRET），不要提交到 git。
+  #   取值支持 "hex:..."(十六进制) / "base64:..." / 明文；AES 密钥须为 16/24/32 字节。
+  secrets:
+    staticToken: "demo-static-token-please-replace"          # BEARER 静态 token
+    jwtSecret: "hex:00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"   # JWT(HS256) 32字节
+    aesKey: "hex:00112233445566778899aabbccddeeff"          # AES-128 16字节（32/48 字符为 192/256 位）
+    hmacKey: "hex:0102030405060708090a0b0c0d0e0f10"         # HMAC-SHA256 签名密钥
+    # oauthClientSecret: "xxx"                              # OAuth2 client_credentials
+  default-timeout-ms: 2000
+  # false：接口失败只记日志 + 写单据消息，规则继续往下跑；true：接口失败直接抛异常（下单一起失败）
+  fail-fast: false

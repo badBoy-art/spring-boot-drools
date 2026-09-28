@@ -2,6 +2,9 @@ package com.example.drools.controller;
 
 import com.example.drools.entity.RuleDefinition;
 import com.example.drools.entity.RuleTypeMeta;
+import com.example.drools.dao.RuleDocumentDao;
+import com.example.drools.domain.DocFact;
+import com.example.drools.service.DocFactBuilder;
 import com.example.drools.service.DynamicRuleEngine;
 import com.example.drools.service.RuleDefinitionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -25,11 +29,45 @@ public class RuleController {
 
     private final RuleDefinitionService service;
     private final DynamicRuleEngine engine;
+    private final RuleDocumentDao documentDao;
+    private final DocFactBuilder docFactBuilder;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public RuleController(RuleDefinitionService service, DynamicRuleEngine engine) {
+    public RuleController(RuleDefinitionService service, DynamicRuleEngine engine, RuleDocumentDao documentDao,
+                          DocFactBuilder docFactBuilder) {
         this.service = service;
         this.engine = engine;
+        this.documentDao = documentDao;
+        this.docFactBuilder = docFactBuilder;
+    }
+
+    /**
+     * 通用单据评估入口：任何注册进中台的单据都能这样跑规则，不用为它写 Java 类。
+     * POST /rule/evaluate?docCode=WF   body = 单据注册里登记的那些字段（可嵌套）
+     * 返回：data（原样）+ ext（接口回填）+ messages（规则过程信息）
+     */
+    @PostMapping("/evaluate")
+    public Map<String, Object> evaluate(@RequestParam String docCode, @RequestBody(required = false) Map<String, Object> body) {
+        if (documentDao.findDocument(docCode) == null) {
+            throw new IllegalArgumentException("单据未注册: " + docCode + "（请先在 ⑤ 单据注册里登记单据/对象/字段）");
+        }
+        // 单据报文 → 事实：注册的派生字段（如 毛利率 = (售价-成本)/售价）在这里统一算好再进规则
+        DocFact fact = docFactBuilder.build(docCode, body);
+        org.kie.api.runtime.KieSession session = engine.newKieSession();
+        try {
+            session.insert(fact);
+            int fired = engine.fireAllRules(session);
+            Map<String, Object> result = new java.util.LinkedHashMap<String, Object>();
+            result.put("docCode", docCode);
+            result.put("bizId", fact.getBizId());
+            result.put("data", fact.getData());
+            result.put("ext", fact.getExt());
+            result.put("messages", fact.getMessages());
+            result.put("fired", fired);
+            return result;
+        } finally {
+            session.dispose();
+        }
     }
 
     /** 全部规则 */
@@ -48,7 +86,12 @@ public class RuleController {
     @GetMapping("/engine/info")
     public Map<String, Object> engineInfo() {
         Map<String, Object> info = new java.util.HashMap<>();
+        // ruleCount：KieBase 内实际规则总数（含组合规则表展开出来的规则）
         info.put("ruleCount", engine.getRuleCount());
+        // publishedRuleCount：数据库里 status=1 的单条规则条数（不含组合规则表展开）
+        info.put("publishedRuleCount", engine.getPublishedRuleCount());
+        // 最近一次加载规则失败的原因（成功时为 null）
+        info.put("lastRefreshError", engine.getLastRefreshError());
         return info;
     }
 

@@ -1,5 +1,6 @@
 package com.example.drools.controller;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -20,6 +21,16 @@ public class GlobalExceptionHandler {
         Map<String, Object> body = new HashMap<>();
         body.put("error", "参数/规则校验失败");
         body.put("message", e.getMessage());
+        return body;
+    }
+
+    /** rule_name 是唯一键：重名时给出可读提示，而不是把 SQL 异常抛给页面 */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, Object> handleDuplicate(DataIntegrityViolationException e) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", "数据约束失败");
+        body.put("message", "规则名已被占用（rule_name 唯一），请换一个规则名；要改现有规则请点列表里的「编辑」");
         return body;
     }
 

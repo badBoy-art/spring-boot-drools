@@ -1,0 +1,272 @@
+package com.example.drools.service;
+
+import com.example.drools.dao.RuleHttpActionDao;
+import com.example.drools.entity.RuleStep;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * 多步骤规则生成器：把「步骤链」编译成 DRL。
+ *
+ * 设计要点（这就是"接口返回结果如何进入后续计算"的答案）：
+ *  1) 一个步骤 = 一条 DRL 规则，salience 递减（100 - step*5）保证先后；
+ *  2) 每步 RHS 第一件事是写 "stepN_done" 标记 + update()，**然后**才调接口 —— at-most-once，
+ *     接口失败也不会被反复点火（本项目实测过：用"成功字段"当守卫会刷到 fireAllRules 上限）；
+ *  3) LHS 守卫 = 「本步未执行」+「本步引用到的上游产物已就绪」：
+ *     如果某步的条件取值或接口入参里出现 ${ext.xxx}，就自动加 ext["xxx"] != null —— 数据没到位不点火，天然串行；
+ *  4) 接口的返回值由「② 接口注册」的返回值映射负责回填 ext（如 data.approverId → ext[approverId]），
+ *     后续步骤只要引用 ${ext.approverId} 就能拿到上一步查回来的数据参与判断/传参；
+ *  5) 每步可配参数：条件取值（stepNValue）、接口动作码（stepNAction）——运营在 ④ 里可以把"这一步调哪个接口"换成别的接口。
+ */
+@Service
+public class RuleStepBuilder {
+
+    private static final Pattern EXT_REF = Pattern.compile("\\$\\{ext\\.([A-Za-z0-9_\\u4e00-\\u9fa5]+)}");
+
+    private final RuleHttpActionDao actionDao;
+
+    public RuleStepBuilder(RuleHttpActionDao actionDao) {
+        this.actionDao = actionDao;
+    }
+
+    /** 生成步骤链 DRL：返回 {fields, templateBody, drlPreview, steps(带生成的规则名), variables} */
+    public Map<String, Object> build(Map<String, Object> request) {
+        String ruleType = str(request.get("ruleType"));
+        String docCode = str(request.get("docCode"));
+        boolean orderFact = "Order".equalsIgnoreCase(str(request.get("factClass")));
+        List<Map<String, Object>> steps = steps(request.get("steps"));
+
+        if (ruleType.isEmpty()) throw new IllegalArgumentException("类型编码(ruleType)必填");
+        if (steps.isEmpty()) throw new IllegalArgumentException("至少要有一个步骤");
+        if (!orderFact && docCode.isEmpty()) throw new IllegalArgumentException("单据编码(docCode)必填");
+
+        List<Map<String, Object>> fields = new ArrayList<Map<String, Object>>();
+        Set<String> availableExt = new LinkedHashSet<String>();   // 上游已回填、后续可引用
+        StringBuilder rules = new StringBuilder();
+        List<Map<String, Object>> stepViews = new ArrayList<Map<String, Object>>();
+
+        for (int i = 0; i < steps.size(); i++) {
+            Map<String, Object> raw = steps.get(i);
+            int no = i + 1;
+            String stepName = defaultIfEmpty(str(raw.get("stepName")), "步骤" + no);
+            String condField = str(raw.get("condField"));
+            String condOp = defaultIfEmpty(str(raw.get("condOp")), ">=");
+            String condType = defaultIfEmpty(str(raw.get("condType")), "NUMBER").toUpperCase();
+            String condValue = str(raw.get("condValue"));
+            String actionType = defaultIfEmpty(str(raw.get("actionType")), "MSG").toUpperCase();
+            String actionCode = str(raw.get("actionCode"));
+            String extField = str(raw.get("extField"));
+            String extValue = str(raw.get("extValue"));
+            String message = str(raw.get("message"));
+
+            String valueKey = "step" + no + "Value";
+            String actionKey = "step" + no + "Action";
+            String marker;
+
+            // ---------- LHS ----------
+            List<String> conds = new ArrayList<String>();
+            if (!orderFact) conds.add("docCode == \"" + docCode + "\"");
+            // 注意：幂等只看"本步是否执行过"（stepN_done），不要用"接口是否已回填"当守卫 ——
+            // 否则同一个接口被两步调用时，第二步会因为 ext[ACTION] != null 而永远不点火。
+            Set<String> upstream = new LinkedHashSet<String>();
+            Matcher m = EXT_REF.matcher(condValue + "|" + str(raw.get("paramJson")));
+            while (m.find()) upstream.add(m.group(1));
+            for (String up : upstream) conds.add("ext[\"" + up + "\"] != null");
+            if (!condField.isEmpty()) {
+                String expr;
+                if (orderFact) {
+                    // Order 事实：直接用属性路径（支持嵌套 customer.level / 集合 items.size()），
+                    // 不能走 DocFact 的 getNumber("字段") 取值器 —— Order 没这个方法（实测编译失败）
+                    expr = "NUMBER".equals(condType)
+                            ? condField + " " + condOp + " ${" + valueKey + "}"
+                            : condField + " " + condOp + " \"${" + valueKey + "}\"";
+                } else {
+                    expr = "NUMBER".equals(condType)
+                            ? "getNumber(\"" + condField + "\") " + condOp + " ${" + valueKey + "}"
+                            : "getString(\"" + condField + "\") " + condOp + " \"${" + valueKey + "}\"";
+                }
+                conds.add(expr);
+            }
+            // 幂等标记必须按「规则」隔离：不同规则/不同类型可能作用在同一个单据上，
+            // 若都用 step1_done，先点火的规则会把标记占掉，后一条永远不执行（实测踩到）。
+            // @RULE@ 在发布时被替换成规则名，于是标记形如 SKU_FLOW_3STEP_HIGH_step1_done。
+            marker = "@RULE@_step" + no + "_done";
+            conds.add("ext[\"" + marker + "\"] == null");
+            String factVar = orderFact ? "$o" : "$d";
+            String factType = orderFact ? "Order" : "DocFact";
+
+            // ---------- RHS（顺序很重要：先打标 + update，再动外部世界） ----------
+            StringBuilder rhs = new StringBuilder();
+            rhs.append("        ").append(factVar).append(".getExt().put(\"").append(marker).append("\", true);\n");
+            rhs.append("        update(").append(factVar).append(");\n");
+            String defaultMsg;
+            if ("CALL".equals(actionType)) {
+                if (actionCode.isEmpty()) throw new IllegalArgumentException("第 " + no + " 步选了「调接口」但没选接口");
+                checkActionExists(actionCode, no);
+                String paramJson = str(raw.get("paramJson"));
+                if (paramJson.isEmpty()) {
+                    rhs.append("        httpActionGateway.invoke(\"${").append(actionKey).append("}\", ").append(factVar).append(");\n");
+                    defaultMsg = "第" + no + "步[" + stepName + "]已调接口 ${" + actionKey + "}";
+                } else {
+                    // 步骤级入参覆写：运营在规则上直接给这一步传参（值支持 ${...} 与表达式）。
+                    // 先把 ${ 转义成 $\{ —— 这些是"运行期引用"（ext/单据字段/docCode），不该被
+                    // DRL 模板的占位符校验当成"未替换的参数"；网关发送前会还原成 ${ 再渲染。
+                    String literal = paramJson.replace("${", "$\\{").replace("\\", "\\\\").replace("\"", "\\\"");
+                    rhs.append("        httpActionGateway.invoke(\"${").append(actionKey).append("}\", ").append(factVar)
+                       .append(", \"").append(literal).append("\");\n");
+                    defaultMsg = "第" + no + "步[" + stepName + "]已调接口 ${" + actionKey + "}（带规则上配的入参）";
+                }
+                // 该接口配的返回值映射会回填 ext，后续步骤可引用
+                for (String back : returnFields(actionCode)) availableExt.add(back);
+                fields.add(field(actionKey, "第" + no + "步 调用的接口", "STRING", actionCode, null, null, null,
+                        "rule_http_action.action_code（④ 里可换）", no * 10));
+            } else if ("SET_EXT".equals(actionType)) {
+                if (extField.isEmpty()) throw new IllegalArgumentException("第 " + no + " 步选了「写单据字段」但没填字段名");
+                rhs.append("        ").append(factVar).append(".getExt().put(\"").append(extField).append("\", \"")
+                        .append(extValue).append("\");\n");
+                defaultMsg = "第" + no + "步[" + stepName + "]写入 " + extField + "=" + extValue;
+                availableExt.add(extField);
+            } else if ("MARK".equals(actionType)) {
+                if (extField.isEmpty()) throw new IllegalArgumentException("第 " + no + " 步选了「打标」但没填字段名");
+                rhs.append("        ").append(factVar).append(".getExt().put(\"").append(extField).append("\", true);\n");
+                defaultMsg = "第" + no + "步[" + stepName + "]打标 " + extField;
+                availableExt.add(extField);
+            } else {
+                defaultMsg = "第" + no + "步[" + stepName + "]完成";
+            }
+            rhs.append("        ").append(factVar).append(".addRuleMessage(\"")
+                    .append(escape(defaultIfEmpty(message, defaultMsg))).append("\");\n");
+
+            if (!condField.isEmpty()) {
+                fields.add(field(valueKey, "第" + no + "步 条件取值（" + condField + " " + condOp + "）",
+                        "NUMBER".equals(condType) ? "NUMBER" : "STRING", condValue, null, null, null, null, no * 10 + 1));
+            }
+
+            rules.append("\nrule \"@RULE@#").append(no).append(" ").append(escape(stepName)).append("\"\n")
+                    .append("    salience ").append(100 - no * 5).append("\n")
+                    .append("    when\n        ").append(factVar).append(" : ").append(factType).append("( ")
+                    .append(String.join(", ", conds)).append(" )\n")
+                    .append("    then\n").append(rhs).append("    end\n");
+
+            Map<String, Object> sv = new LinkedHashMap<String, Object>();
+            sv.put("stepNo", no);
+            sv.put("stepName", stepName);
+            sv.put("ruleName", ruleType + "#" + no + " " + stepName);
+            sv.put("salience", 100 - no * 5);
+            sv.put("conditions", conds);
+            sv.put("actionType", actionType);
+            sv.put("actionCode", actionCode);
+            sv.put("upstreamRefs", new ArrayList<String>(upstream));
+            sv.put("message", defaultIfEmpty(message, defaultMsg));
+            stepViews.add(sv);
+        }
+
+        String templateBody = rules.toString();
+
+        Map<String, Object> out = new LinkedHashMap<String, Object>();
+        out.put("fields", fields);
+        out.put("templateBody", templateBody);
+        out.put("steps", stepViews);
+        out.put("availableExt", new ArrayList<String>(availableExt));
+        out.put("drlPreview", preview(ruleType, templateBody));
+        return out;
+    }
+
+    /** 该接口的返回值映射会回填哪些 ext 字段（供页面提示"后续步骤可引用的变量"） */
+    public List<String> returnFields(String actionCode) {
+        List<String> out = new ArrayList<String>();
+        if (actionCode == null || actionCode.isEmpty()) return out;
+        for (com.example.drools.entity.RuleHttpActionReturn r : actionDao.findReturns(actionCode)) {
+            if (r.getTargetField() != null && !r.getTargetField().isEmpty()) out.add(r.getTargetField());
+        }
+        return out;
+    }
+
+    /** 校验接口已注册（多步骤保存时的护栏，报错要说清第几步） */
+    private void checkActionExists(String actionCode, int no) {
+        if (actionDao.findByCode(actionCode) == null) {
+            throw new IllegalArgumentException("第 " + no + " 步选的接口不存在: " + actionCode
+                    + "（请先在「② 接口注册」里注册，或改用已注册的接口）");
+        }
+    }
+
+    private String preview(String ruleType, String body) {
+        return "package com.example.drools.dynamic;\n\n"
+                + "dialect \"java\"\n\n"
+                + "import com.example.drools.domain.DocFact;\n"
+                + "import com.example.drools.domain.Order;\n\n"
+                + "global com.example.drools.http.HttpActionGateway httpActionGateway;\n"
+                + body;
+    }
+
+    private Map<String, Object> field(String key, String name, String type, String defaultValue, String minValue,
+                                      String maxValue, String enumOptions, String placeholder, int sortOrder) {
+        Map<String, Object> f = new LinkedHashMap<String, Object>();
+        f.put("fieldKey", key);
+        f.put("fieldName", name);
+        f.put("fieldType", type);
+        f.put("required", true);
+        f.put("defaultValue", defaultValue);
+        f.put("minValue", minValue);
+        f.put("maxValue", maxValue);
+        f.put("enumOptions", enumOptions);
+        f.put("placeholder", placeholder);
+        f.put("sortOrder", sortOrder);
+        return f;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> steps(Object raw) {
+        List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
+        if (!(raw instanceof List)) return out;
+        for (Object o : (List<Object>) raw) {
+            if (o instanceof Map) out.add((Map<String, Object>) o);
+        }
+        return out;
+    }
+
+    private String escape(String s) {
+        return s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\'");
+    }
+
+    private String str(Object o) {
+        return o == null ? "" : String.valueOf(o).trim();
+    }
+
+    private String defaultIfEmpty(String value, String fallback) {
+        return value == null || value.isEmpty() ? fallback : value;
+    }
+
+    /** 供控制器把页面传来的步骤 JSON 落库 */
+    @SuppressWarnings("unchecked")
+    public List<RuleStep> toEntities(Object rawSteps) {
+        List<RuleStep> out = new ArrayList<RuleStep>();
+        List<Map<String, Object>> list = steps(rawSteps);
+        for (int i = 0; i < list.size(); i++) {
+            Map<String, Object> m = list.get(i);
+            RuleStep s = new RuleStep();
+            s.setStepNo(i + 1);
+            s.setStepName(str(m.get("stepName")));
+            s.setCondField(str(m.get("condField")));
+            s.setCondOp(str(m.get("condOp")));
+            s.setCondType(defaultIfEmpty(str(m.get("condType")), "NUMBER"));
+            s.setCondValue(str(m.get("condValue")));
+            s.setActionType(defaultIfEmpty(str(m.get("actionType")), "MSG").toUpperCase());
+            s.setActionCode(str(m.get("actionCode")));
+            s.setExtField(str(m.get("extField")));
+            s.setExtValue(str(m.get("extValue")));
+            s.setMessage(str(m.get("message")));
+            s.setParamJson(str(m.get("paramJson")));
+            out.add(s);
+        }
+        return out;
+    }
+}
