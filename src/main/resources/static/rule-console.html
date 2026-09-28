@@ -311,10 +311,10 @@ function paramValues(ruleType) {
 
 /* ============ ③ 新建规则类型：步骤链编辑器 ============ */
 let ED = {steps: []};
-const ACTION_KINDS = [['SET_EXT','写单据字段'],['MARK','打标（true）'],['MSG','只加消息']];
+const ACTION_KINDS = [['SET_EXT','写单据字段']];
 
 function typeEditor() {
-  return card('新建规则类型', '一行一步：先判条件，再决定这一步要不要调接口、调哪个接口；接口的回填值会自动暴露给后续步骤',
+  return card('新建规则类型', '一行一步：先判条件，再把判定结果写进单据的决策字段（ext）；后续步骤/后续规则都能直接引用前一步写入的字段',
     `<button onclick="previewType()">预览 DRL</button><button class="pri" onclick="saveType()">保存类型</button>`,
     `<div class="grid">
        <div><label>类型编码 ruleType</label><input id="t-code" placeholder="SKU_APPROVAL_3STEP"/></div>
@@ -407,7 +407,7 @@ function renderSteps() {
           ${ACTION_KINDS.map(([v,l]) => `<option value="${v}"${v === s.actionType ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
         ${false ? `<div><label>调用哪个接口（从接口列表选）</label><select onchange="setStep(${i},'actionCode',this.value)">
             ${ACTIONS.map(x => `<option value="${esc(x.actionCode)}"${x.actionCode === s.actionCode ? ' selected' : ''}>${esc(x.actionName)}（${esc(x.actionCode)}）</option>`).join('')}</select></div>` : ''}
-        ${s.actionType === 'SET_EXT' || s.actionType === 'MARK' ? `<div><label>写到哪个字段（来自单据注册的字段，多级对象可选）</label>
+        ${s.actionType === 'SET_EXT' ? `<div><label>写到哪个字段（来自单据注册的字段，多级对象可选）</label>
             <select onchange="setStep(${i},'extField',this.value)">${extFieldOptions(doc, s.extField)}</select>
             <input style="margin-top:6px" value="${esc(s.extField)}" oninput="setStep(${i},'extField',this.value)" placeholder="或手填自定义 key，如 approvalLevel"/></div>` : ''}
         ${false ? `<div style="grid-column:span 3"><label>参数绑定：参数名 = 规则上下文取值（每行一条）</label>

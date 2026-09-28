@@ -102,24 +102,15 @@ public class RuleStepBuilder {
             rhs.append("        ").append(factVar).append(".getExt().put(\"").append(marker).append("\", true);\n");
             rhs.append("        update(").append(factVar).append(");\n");
             String defaultMsg;
-            if ("CALL".equals(actionType)) {
-                throw new IllegalArgumentException("第 " + no + " 步选了「调接口」：接口调用已改由业务系统处理"
-                        + "（引擎只输出决策：写单据字段 / 打标 / 加消息），请把这一步改成写字段或加消息");
-
-            } else if ("SET_EXT".equals(actionType)) {
-                if (extField.isEmpty()) throw new IllegalArgumentException("第 " + no + " 步选了「写单据字段」但没填字段名");
-                rhs.append("        ").append(factVar).append(".getExt().put(\"").append(extField).append("\", \"")
-                        .append(extValue).append("\");\n");
-                defaultMsg = "第" + no + "步[" + stepName + "]写入 " + extField + "=" + extValue;
-                availableExt.add(extField);
-            } else if ("MARK".equals(actionType)) {
-                if (extField.isEmpty()) throw new IllegalArgumentException("第 " + no + " 步选了「打标」但没填字段名");
-                rhs.append("        ").append(factVar).append(".getExt().put(\"").append(extField).append("\", true);\n");
-                defaultMsg = "第" + no + "步[" + stepName + "]打标 " + extField;
-                availableExt.add(extField);
-            } else {
-                defaultMsg = "第" + no + "步[" + stepName + "]完成";
+            if (!"SET_EXT".equals(actionType)) {
+                throw new IllegalArgumentException("第 " + no + " 步的动作[" + actionType + "]暂不支持："
+                        + "引擎只输出决策，步骤动作目前只有「写单据字段」（打标 / 只加消息 先不开放）");
             }
+            if (extField.isEmpty()) throw new IllegalArgumentException("第 " + no + " 步选了「写单据字段」但没填字段名");
+            rhs.append("        ").append(factVar).append(".getExt().put(\"").append(extField).append("\", \"")
+                    .append(extValue).append("\");\n");
+            defaultMsg = "第" + no + "步[" + stepName + "]写入 " + extField + "=" + extValue;
+            availableExt.add(extField);
             rhs.append("        ").append(factVar).append(".addRuleMessage(\"")
                     .append(escape(defaultIfEmpty(message, defaultMsg))).append("\");\n");
 
