@@ -73,14 +73,16 @@ public class RuleTypeMetaDao {
     /** 注册/覆盖规则类型元数据（自定义类型 builtin=0） */
     public int upsertMeta(RuleTypeMeta meta) {
         return jdbc.update(
-                "INSERT INTO rule_type_meta (rule_type, rule_group, type_name, type_desc, builtin, sort_order) "
-                        + "VALUES (?, ?, ?, ?, ?, ?) "
+                "INSERT INTO rule_type_meta (rule_type, rule_group, type_name, type_desc, builtin, sort_order, output_fields) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?) "
                         + "ON DUPLICATE KEY UPDATE rule_group = VALUES(rule_group), type_name = VALUES(type_name), "
-                        + "type_desc = VALUES(type_desc), sort_order = VALUES(sort_order)",
+                        + "type_desc = VALUES(type_desc), sort_order = VALUES(sort_order), "
+                        + "output_fields = VALUES(output_fields)",
                 meta.getRuleType(), meta.getRuleGroup() == null ? "custom" : meta.getRuleGroup(),
                 meta.getTypeName(), meta.getTypeDesc(),
                 Boolean.TRUE.equals(meta.getBuiltin()) ? 1 : 0,
-                meta.getSortOrder() == null || meta.getSortOrder() == 0 ? 90 : meta.getSortOrder());
+                meta.getSortOrder() == null || meta.getSortOrder() == 0 ? 90 : meta.getSortOrder(),
+                meta.getOutputFields());
     }
 
     /** 注册/覆盖类型的一个参数定义 */
@@ -134,6 +136,7 @@ public class RuleTypeMetaDao {
             m.setTypeDesc(rs.getString("type_desc"));
             m.setBuiltin(rs.getInt("builtin") == 1);
             m.setSortOrder(rs.getInt("sort_order"));
+            m.setOutputFields(rs.getString("output_fields"));
             return m;
         };
     }

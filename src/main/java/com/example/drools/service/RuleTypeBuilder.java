@@ -102,14 +102,10 @@ public class RuleTypeBuilder {
             require(extField, "写单据字段模式必须填 ext 字段名(extField)，如 approvalLevel");
             require(extValue, "写单据字段模式必须填 ext 取值(extValue)，如 L2");
             String factVar = orderFact ? "$o" : "$d";
-            String compare = "NUMBER".equalsIgnoreCase(valueType)
-                    ? "getNumber(\"" + fieldPath + "\") " + operator + " ${" + valueParamKey + "}"
-                    : "getString(\"" + fieldPath + "\") " + operator + " \"${" + valueParamKey + "}\"";
-            if (orderFact) {
-                compare = "NUMBER".equalsIgnoreCase(valueType)
-                        ? fieldPath + " " + operator + " ${" + valueParamKey + "}"
-                        : fieldPath + " " + operator + " \"${" + valueParamKey + "}\"";
-            }
+            String compare = DrlSyntax.render(
+                    orderFact ? fieldPath : ("NUMBER".equalsIgnoreCase(valueType) || DrlSyntax.isNumeric(valueType)
+                            ? "getNumber(\"" + fieldPath + "\")" : "getString(\"" + fieldPath + "\")"),
+                    operator, "${" + valueParamKey + "}", valueType);
             String when = orderFact
                     ? "$o : Order( rejected == false, " + compare + " )"
                     : "$d : DocFact( docCode == \"" + docCode + "\", " + compare + " )";

@@ -61,7 +61,15 @@ public class RuleController {
             // decision：只装"单据注册里标了决策输出"的字段（业务只读这一块就够）
             //   取值优先 ext（规则写进去的决策），其次 data（入参/派生的原值）
             Map<String, Object> decision = new java.util.LinkedHashMap<String, Object>();
-            for (String outKey : documentDao.findOutputFieldKeys(docCode)) {
+            // 决策字段清单 = ①单据注册里勾了「决策输出」的字段 ∪ ③规则类型里注册的「本类型输出字段」
+            java.util.LinkedHashSet<String> outputKeys = new java.util.LinkedHashSet<String>(
+                    documentDao.findOutputFieldKeys(docCode));
+            java.util.Set<String> docKeys = new java.util.HashSet<String>();
+            for (com.example.drools.entity.RuleDocumentField f : documentDao.findFields(docCode)) {
+                docKeys.add(f.getFieldKey());
+            }
+            outputKeys.addAll(documentDao.findPublishedOutputFields(docKeys));
+            for (String outKey : outputKeys) {
                 Object v = fact.getExt().containsKey(outKey) ? fact.getExt().get(outKey) : fact.getData().get(outKey);
                 if (v != null) {
                     decision.put(outKey, v);

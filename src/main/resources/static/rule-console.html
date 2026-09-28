@@ -319,11 +319,21 @@ function typeEditor() {
   return card('新建规则类型', '一行一步：先判条件，再把判定结果写进单据的决策字段（ext）；后续步骤/后续规则都能直接引用前一步写入的字段',
     `<button onclick="previewType()">预览 DRL</button><button class="pri" onclick="saveType()">保存类型</button>`,
     `<div class="grid">
-       <div><label>类型编码 ruleType</label><input id="t-code" placeholder="SKU_APPROVAL_3STEP"/></div>
-       <div><label>类型名称</label><input id="t-name" placeholder="商品审批链路"/></div>
+       <div><label>类型编码 ruleType</label><input id="t-code" placeholder="SKU_APPROVAL_3STEP"/></div>       <div><label>类型名称</label><input id="t-name" placeholder="商品审批链路"/></div>
        <div><label>绑定单据（通用单据载体 DocFact）</label><select id="t-doc">${DOCS.map(d => `<option value="${esc(d.docCode)}">${esc(d.docName)}（${esc(d.docCode)}）</option>`).join('')}</select></div>
        <div><label>分组</label><input id="t-group" value="approval"/></div>
        <div><label>排序</label><input id="t-sort" value="60"/></div>
+       <div style="grid-column:span 3"><label>本类型输出的决策字段（可多选 → 评估响应 decision 里返回）</label>
+         <select id="t-outputs" multiple size="4">${(function(){
+           const out = [];
+           const walk = (ns, dn) => (ns || []).forEach(o => {
+             (o.fields || []).forEach(f => out.push('<option value="' + esc(f.fieldKey) + '">' + esc(dn) + ' · ' + esc(f.fieldName) + ' (' + esc(f.fieldKey) + ')</option>'));
+             walk(o.children, dn);
+           });
+           DOCS.forEach(d => walk(d.tree, d.docName));
+           return out.join('');
+         })()}</select>
+         <div class="sub">在这里注册的字段 = 业务方的决策契约（Ctrl/Cmd 多选）；①单据注册里勾的字段也会进 decision，两边取并集</div></div>
      </div>
      <div class="stepbar" style="margin-top:18px"><span class="stepno" style="background:#0f172a">≡</span><b>步骤链</b>
        <span class="sub">按从上到下执行</span>
@@ -456,6 +466,9 @@ async function previewType() {
 async function saveType() {
   try {
     const b = edBody();
+    // 本类型输出的决策字段（多选）→ 评估响应 decision 的契约来源之一
+    const outSel = $('t-outputs');
+    if (outSel) { b.outputFields = Array.from(outSel.selectedOptions).map(o => o.value); }
     if (!b.ruleType || !b.typeName) throw new Error('类型编码和名称必填');
     if (!ED.steps.length) throw new Error('至少要有一个步骤');
     const r = await post('rule/type/save', b);

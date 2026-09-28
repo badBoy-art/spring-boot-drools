@@ -86,6 +86,10 @@ public class RuleTypeController {
 
     /** 多步骤模式：把类型级元数据补齐（RuleStepBuilder 只负责 steps/字段/模板） */
     private Map<String, Object> mergeMeta(Map<String, Object> built, Map<String, Object> request) {
+        // 「本类型输出的决策字段」：由页面多选传进来，评估响应 decision 按它返回
+        if (!built.containsKey("outputFields") && request.get("outputFields") != null) {
+            built.put("outputFields", request.get("outputFields"));
+        }
         if (!built.containsKey("ruleType")) {
             built.put("ruleType", String.valueOf(request.get("ruleType")));
         }
@@ -154,6 +158,25 @@ public class RuleTypeController {
         meta.setTypeDesc(built.get("typeDesc") == null ? null : String.valueOf(built.get("typeDesc")));
         meta.setBuiltin(false);
         meta.setSortOrder(Integer.parseInt(String.valueOf(built.get("sortOrder"))));
+        // 本类型输出的决策字段（页面多选传数组，这里转 CSV 落库）→ 评估响应 decision 按它返回
+        Object outputs = built.get("outputFields");
+        String outputCsv = null;
+        if (outputs instanceof java.util.Collection) {
+            StringBuilder sb = new StringBuilder();
+            for (Object item : (java.util.Collection<?>) outputs) {
+                if (item == null || String.valueOf(item).trim().isEmpty()) {
+                    continue;
+                }
+                if (sb.length() > 0) {
+                    sb.append(",");
+                }
+                sb.append(String.valueOf(item).trim());
+            }
+            outputCsv = sb.length() == 0 ? null : sb.toString();
+        } else if (outputs != null && !String.valueOf(outputs).trim().isEmpty()) {
+            outputCsv = String.valueOf(outputs).trim();
+        }
+        meta.setOutputFields(outputCsv);
         metaDao.upsertMeta(meta);
 
         metaDao.deleteFields(ruleType);

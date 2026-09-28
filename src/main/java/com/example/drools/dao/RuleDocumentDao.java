@@ -40,6 +40,26 @@ public class RuleDocumentDao {
                 docName, remark, docCode);
     }
 
+    /**
+     * 已发布规则类型上注册的「决策输出字段」（rule_type_meta.output_fields）。
+     * 只保留本单据已注册的字段，避免别的单据的决策字段混进来。
+     */
+    public List<String> findPublishedOutputFields(java.util.Set<String> docFieldKeys) {
+        List<String> rows = jdbc.queryForList("SELECT m.output_fields FROM rule_type_meta m "
+                + "JOIN rule_definition r ON r.rule_type = m.rule_type "
+                + "WHERE r.status = 1 AND m.output_fields IS NOT NULL AND m.output_fields <> ''", String.class);
+        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<String>();
+        for (String csv : rows) {
+            for (String k : csv.split(",")) {
+                String key = k.trim();
+                if (!key.isEmpty() && docFieldKeys.contains(key)) {
+                    out.add(key);
+                }
+            }
+        }
+        return new java.util.ArrayList<String>(out);
+    }
+
     /** 决策输出字段的取值路径（单据注册里 is_output=1 的字段）——评估响应的 decision 块按这个清单组装 */
     public List<String> findOutputFieldKeys(String docCode) {
         return jdbc.queryForList("SELECT field_key FROM rule_document_field WHERE doc_code = ? AND is_output = 1 "

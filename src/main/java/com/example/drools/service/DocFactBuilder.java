@@ -9,9 +9,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 单据事实构建器：把页面传来的单据报文 + 注册的"派生字段"表达式算成一个 {@link DocFact}。
@@ -48,33 +51,143 @@ public class DocFactBuilder {
         return fact;
     }
 
-    /** 按注册的表达式计算派生字段：算不出来只记消息、不中断（缺字段会让规则不命中，比抛异常更安全） */
+    /**
+     * 按注册的表达式计算派生字段，支持多个字段参与计算（如 毛利率 = (销售价格 - 成本价) / 成本价）。
+     *
+     * 三个要点（都是实测需要才加的）：
+     *  1) 字段既能按 fieldKey 引用，也能按**中文名**引用：这里给每个字段建立中文名别名一起塞进上下文
+     *  2) 派生字段可以引用另一个派生字段（如 折扣后价 = 售价 * (1 - 折扣率)），按依赖拓扑顺序算，不靠注册顺序
+     *  3) 环依赖 / 缺字段只记消息、不中断（缺字段会让规则不命中，比抛异常更安全）
+     */
     public void computeDerivedFields(DocFact fact) {
         List<RuleDocumentField> fields = documentDao.findFields(fact.getDocCode());
         if (fields == null || fields.isEmpty()) {
             return;
         }
         Map<String, Object> data = fact.getData();
-        List<String> failures = new ArrayList<String>();
-        for (RuleDocumentField field : fields) {
-            String expr = field.getExpr();
-            if (expr == null || expr.trim().isEmpty()) {
-                continue;
+        // 中文名 <-> fieldKey 双向别名
+        for (RuleDocumentField f : fields) {
+            alias(data, f.getFieldName(), f.getFieldKey());
+        }
+
+        List<RuleDocumentField> derived = new ArrayList<RuleDocumentField>();
+        for (RuleDocumentField f : fields) {
+            if (f.getExpr() != null && !f.getExpr().trim().isEmpty()) {
+                derived.add(f);
             }
-            try {
-                Object value = MVEL.eval(expr.trim(), data);
-                if (value != null) {
-                    data.put(field.getFieldKey(), value);
-                    log.debug("派生字段 {}.{}({}) = {}", fact.getDocCode(), field.getFieldKey(), expr, value);
+        }
+        if (derived.isEmpty()) {
+            return;
+        }
+
+        List<String> failures = new ArrayList<String>();
+        Set<String> computed = new LinkedHashSet<String>();
+        // 拓扑排序：算完上游再算下游（引用关系从表达式里扫 fieldKey / 中文名）
+        List<RuleDocumentField> pending = new ArrayList<RuleDocumentField>(derived);
+        int guard = 0;
+        while (!pending.isEmpty() && guard++ <= derived.size() * derived.size() + derived.size()) {
+            boolean progressed = false;
+            for (Iterator<RuleDocumentField> it = pending.iterator(); it.hasNext(); ) {
+                RuleDocumentField f = it.next();
+                Set<String> deps = dependencies(f, derived, fields);
+                boolean ready = true;
+                for (String dep : deps) {
+                    if (!computed.contains(dep)) {
+                        ready = false;
+                        break;
+                    }
                 }
-            } catch (Exception e) {
-                failures.add(field.getFieldName() + "[" + field.getFieldKey() + "] = " + expr + " → " + e.getMessage());
+                if (!ready) {
+                    continue;
+                }
+                try {
+                    Object value = MVEL.eval(f.getExpr().trim(), data);
+                    if (value != null) {
+                        data.put(f.getFieldKey(), value);
+                        alias(data, f.getFieldName(), f.getFieldKey());
+                        log.debug("派生字段 {}.{}({}) = {}", fact.getDocCode(), f.getFieldKey(), f.getExpr(), value);
+                    }
+                    computed.add(f.getFieldKey());
+                } catch (Exception e) {
+                    failures.add(describeFailure(f, e));
+                    computed.add(f.getFieldKey()); // 算不出来也要放行，避免依赖它的字段被永久卡住
+                }
+                it.remove();
+                progressed = true;
+            }
+            if (!progressed) {
+                StringBuilder cyc = new StringBuilder();
+                for (RuleDocumentField f : pending) {
+                    cyc.append(f.getFieldKey()).append(" ");
+                }
+                failures.add("派生字段存在循环依赖，无法排序：" + cyc.toString().trim());
+                break;
             }
         }
         for (String failure : failures) {
-            // 走单据消息通道，试算结果里直接能看到哪个派生字段没算出来
             fact.addRuleMessage("派生字段计算失败：" + failure);
             log.warn("派生字段计算失败 docCode={} {}", fact.getDocCode(), failure);
         }
+    }
+
+    /** 中文名别名：把中文名当上下文键，表达式里用中文名也能算（key 为空则跳过） */
+    private void alias(Map<String, Object> data, String fieldName, String fieldKey) {
+        if (fieldName == null || fieldName.trim().isEmpty() || fieldKey == null || fieldKey.trim().isEmpty()) {
+            return;
+        }
+        String name = fieldName.trim();
+        if (name.equals(fieldKey)) {
+            return;
+        }
+        if (data.containsKey(fieldKey) && !data.containsKey(name)) {
+            data.put(name, data.get(fieldKey));
+        } else if (data.containsKey(name) && !data.containsKey(fieldKey)) {
+            data.put(fieldKey, data.get(name));
+        }
+    }
+
+    /** 表达式依赖了哪些派生字段（按 fieldKey 或中文名扫描） */
+    private Set<String> dependencies(RuleDocumentField field, List<RuleDocumentField> derived,
+                                     List<RuleDocumentField> all) {
+        String expr = field.getExpr();
+        Set<String> deps = new LinkedHashSet<String>();
+        for (RuleDocumentField other : all) {
+            if (other == field || other.getFieldKey() == null) {
+                continue;
+            }
+            boolean isDerived = false;
+            for (RuleDocumentField d : derived) {
+                if (d == other) {
+                    isDerived = true;
+                    break;
+                }
+            }
+            if (!isDerived) {
+                continue;
+            }
+            if (containsIdentifier(expr, other.getFieldKey())
+                    || (other.getFieldName() != null && containsIdentifier(expr, other.getFieldName()))) {
+                deps.add(other.getFieldKey());
+            }
+        }
+        return deps;
+    }
+
+    private boolean containsIdentifier(String expr, String token) {
+        if (expr == null || token == null || token.trim().isEmpty()) {
+            return false;
+        }
+        return java.util.regex.Pattern.compile("(?<![\\w$])" + java.util.regex.Pattern.quote(token.trim())
+                + "(?![\\w$])").matcher(expr).find();
+    }
+
+    /** 失败原因里带上"引用了哪个没传的字段"，比 MVEL 原文更好定位 */
+    private String describeFailure(RuleDocumentField f, Exception e) {
+        String msg = e.getMessage() == null ? e.toString() : e.getMessage();
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(?:unresolvable property or identifier|unknown property|Unable to resolve)[:\\s]*([\\w\\u4e00-\\u9fa5.]+)")
+                .matcher(msg);
+        String hint = m.find() ? "（引用的字段没传或未注册：" + m.group(1) + "）" : "";
+        return f.getFieldName() + "[" + f.getFieldKey() + "] = " + f.getExpr() + " → " + msg + hint;
     }
 }

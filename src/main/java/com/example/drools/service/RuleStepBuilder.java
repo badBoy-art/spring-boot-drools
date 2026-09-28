@@ -75,19 +75,14 @@ public class RuleStepBuilder {
             while (m.find()) upstream.add(m.group(1));
             for (String up : upstream) conds.add("ext[\"" + up + "\"] != null");
             if (!condField.isEmpty()) {
-                String expr;
-                if (orderFact) {
-                    // Order 事实：直接用属性路径（支持嵌套 customer.level / 集合 items.size()），
-                    // 不能走 DocFact 的 getNumber("字段") 取值器 —— Order 没这个方法（实测编译失败）
-                    expr = "NUMBER".equals(condType)
-                            ? condField + " " + condOp + " ${" + valueKey + "}"
-                            : condField + " " + condOp + " \"${" + valueKey + "}\"";
-                } else {
-                    expr = "NUMBER".equals(condType)
-                            ? "getNumber(\"" + condField + "\") " + condOp + " ${" + valueKey + "}"
-                            : "getString(\"" + condField + "\") " + condOp + " \"${" + valueKey + "}\"";
-                }
-                conds.add(expr);
+                // 运算符 + 取值类型 全部交给 DrlSyntax（Drools 运算符/类型全集只在那一个类里定义）
+                // 左侧：DocFact 走取值器 getNumber/getString；Order 事实走属性路径（支持嵌套与中文名）
+                String left = orderFact
+                        ? condField
+                        : ("NUMBER".equalsIgnoreCase(condType) || DrlSyntax.isNumeric(condType)
+                            ? "getNumber(\"" + condField + "\")"
+                            : "getString(\"" + condField + "\")");
+                conds.add(DrlSyntax.render(left, condOp, "${" + valueKey + "}", condType));
             }
             // 幂等标记必须按「规则」隔离：不同规则/不同类型可能作用在同一个单据上，
             // 若都用 step1_done，先点火的规则会把标记占掉，后一条永远不执行（实测踩到）。
@@ -114,9 +109,11 @@ public class RuleStepBuilder {
             rhs.append("        ").append(factVar).append(".addRuleMessage(\"")
                     .append(escape(defaultIfEmpty(message, defaultMsg))).append("\");\n");
 
-            if (!condField.isEmpty()) {
+            if (!condField.isEmpty() && DrlSyntax.needsValue(condOp)) {
                 fields.add(field(valueKey, "第" + no + "步 条件取值（" + condField + " " + condOp + "）",
-                        "NUMBER".equals(condType) ? "NUMBER" : "STRING", condValue, null, null, null, null, no * 10 + 1));
+                        // 保留页面声明的类型：CSV 会被 DrlGenerator 转成 DRL 列表（in/not in 要用）
+                        defaultIfEmpty(condType, DrlSyntax.isNumeric(condType) ? "NUMBER" : "STRING"),
+                        condValue, null, null, null, null, no * 10 + 1));
             }
 
             rules.append("\nrule \"@RULE@#").append(no).append(" ").append(escape(stepName)).append("\"\n")
