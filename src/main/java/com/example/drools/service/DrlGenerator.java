@@ -90,6 +90,10 @@ public class DrlGenerator {
             String value = "CSV".equals(type)
                     ? toDrlList(String.valueOf(e.getValue()))
                     : String.valueOf(e.getValue());
+            // 数字类型允许百分比写法：规则参数写 50% → DRL 里就是 0.5
+            if (com.example.drools.service.DrlSyntax.isNumeric(type)) {
+                value = com.example.drools.service.DrlSyntax.normalizePercent(value);
+            }
             result = result.replace("${" + key + "}", value);
         }
         return result;

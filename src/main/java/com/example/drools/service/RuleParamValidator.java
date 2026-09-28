@@ -43,20 +43,13 @@ public class RuleParamValidator {
 
             switch (f.getFieldType()) {
                 case "NUMBER":
-                    if (!(v instanceof Number)) {
-                        throw new IllegalArgumentException("参数 " + name + " 必须是数字");
-                    }
-                    checkRange(f, name, ((Number) v).doubleValue());
-                    break;
                 case "DECIMAL":
-                    if (!(v instanceof Number)) {
-                        throw new IllegalArgumentException("参数 " + name + " 必须是数字");
+                    // 数字参数接受三种写法：数字、数字字符串、"50%"（百分比会在生成 DRL 时换算成 0.5）
+                    Double num = toNumber(String.valueOf(v));
+                    if (num == null) {
+                        throw new IllegalArgumentException("参数 " + name + " 必须是数字（可写 0.5 或 50%）");
                     }
-                    double dv = ((Number) v).doubleValue();
-                    if (dv < 0 || dv > 1) {
-                        throw new IllegalArgumentException("参数 " + name + " 必须在 0 到 1 之间");
-                    }
-                    checkRange(f, name, dv);
+                    checkRange(f, name, num);
                     break;
                 case "ENUM":
                     String sv = String.valueOf(v);
@@ -77,11 +70,24 @@ public class RuleParamValidator {
         }
     }
 
-    private void checkRange(RuleTypeField f, String name, double dv) {
-        if (f.getMinValue() != null && dv < Double.parseDouble(f.getMinValue())) {
+    /** 数字写法兼容：数字 / "0.5" / "50%" → double；解析不了返回 null */
+    private Double toNumber(String raw) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return null;
+        }
+        String v = DrlSyntax.normalizePercent(raw.trim());
+        try {
+            return Double.valueOf(v);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private void checkRange(RuleTypeField f, String name, double value) {
+        if (f.getMinValue() != null && value < Double.parseDouble(f.getMinValue())) {
             throw new IllegalArgumentException("参数 " + name + " 不能小于 " + f.getMinValue());
         }
-        if (f.getMaxValue() != null && dv > Double.parseDouble(f.getMaxValue())) {
+        if (f.getMaxValue() != null && value > Double.parseDouble(f.getMaxValue())) {
             throw new IllegalArgumentException("参数 " + name + " 不能大于 " + f.getMaxValue());
         }
     }

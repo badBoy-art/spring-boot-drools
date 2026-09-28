@@ -110,6 +110,61 @@ public final class DrlSyntax {
         return TYPES;
     }
 
+    /** 把页面写的"多字段算式"翻译成 DRL 里能跑的表达式。
+     *  · Order 事实：属性路径原样（totalAmount、customer.level、items.size()）
+     *  · DocFact（Map 载体）：每个字段名包成 getNumber("字段")，如
+     *      (售价 - 成本) / 成本   →   (getNumber("售价") - getNumber("成本")) / getNumber("成本")
+     *    已经是函数调用（紧跟 `(`）与 true/false/null 常量保持原样。 */
+    public static String toFactExpression(String rawExpr, boolean orderFact) {
+        if (rawExpr == null || rawExpr.trim().isEmpty()) {
+            return "";
+        }
+        String expr = rawExpr.trim();
+        if (orderFact || expr.contains("getNumber(") || expr.contains("getString(")) {
+            return expr;
+        }
+        if (!looksLikeExpression(expr)) {
+            return "getNumber(\"" + expr + "\")";
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("[A-Za-z_\\u4e00-\\u9fa5][A-Za-z0-9_\\u4e00-\\u9fa5.]*").matcher(expr);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            String id = m.group();
+            boolean isCall = m.end() < expr.length() && expr.charAt(m.end()) == '(';
+            boolean isConst = "true".equals(id) || "false".equals(id) || "null".equals(id) || "new".equals(id);
+            if (isCall || isConst) {
+                m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(id));
+            } else {
+                m.appendReplacement(sb, "getNumber(\"" + id + "\")");
+            }
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
+    /** 是不是算式（含运算符/括号/空格）而不是单个字段名 */
+    public static boolean looksLikeExpression(String s) {
+        return s.matches(".*[+\\-*/()\\s%].*");
+    }
+
+    /** 百分比写法 → 小数：50% → 0.5（用户习惯直接写 50%） */
+    public static String normalizePercent(String value) {
+        if (value == null) {
+            return null;
+        }
+        String v = value.trim();
+        if (v.endsWith("%")) {
+            try {
+                return new java.math.BigDecimal(v.substring(0, v.length() - 1).trim())
+                        .divide(new java.math.BigDecimal("100")).stripTrailingZeros().toPlainString();
+            } catch (Exception e) {
+                return v;
+            }
+        }
+        return v;
+    }
+
     /** 该类型按数字处理（聚合取值走 getNumber、字面量不加引号） */
     public static boolean isNumeric(String type) {
         String t = normalizeType(type);

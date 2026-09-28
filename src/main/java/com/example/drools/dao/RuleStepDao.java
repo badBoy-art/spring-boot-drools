@@ -21,7 +21,7 @@ public class RuleStepDao {
 
     private static final String COLS =
             "id, rule_type, step_no, step_name, cond_field, cond_op, cond_type, cond_value, " +
-            "action_type, action_code, ext_field, ext_value, message, param_json, create_time";
+            "action_type, action_code, ext_field, ext_value, ext_value_type, message, param_json, create_time";
 
     private final RowMapper<RuleStep> mapper = new RowMapper<RuleStep>() {
         @Override
@@ -39,6 +39,7 @@ public class RuleStepDao {
             s.setActionCode(rs.getString("action_code"));
             s.setExtField(rs.getString("ext_field"));
             s.setExtValue(rs.getString("ext_value"));
+            s.setExtValueType(rs.getString("ext_value_type"));
             s.setMessage(rs.getString("message"));
             s.setParamJson(rs.getString("param_json"));
             return s;
@@ -55,9 +56,11 @@ public class RuleStepDao {
 
     public int insert(RuleStep s) {
         return jdbc.update("INSERT INTO rule_step (rule_type, step_no, step_name, cond_field, cond_op, cond_type, cond_value, "
-                        + "action_type, action_code, ext_field, ext_value, message, param_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        + "action_type, action_code, ext_field, ext_value, ext_value_type, message, param_json) "
+                        + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 s.getRuleType(), s.getStepNo(), s.getStepName(), s.getCondField(), s.getCondOp(), s.getCondType(),
-                s.getCondValue(), s.getActionType(), s.getActionCode(), s.getExtField(), s.getExtValue(), s.getMessage(),
+                s.getCondValue(), s.getActionType(), s.getActionCode(), s.getExtField(), s.getExtValue(),
+                s.getExtValueType() == null ? "STRING" : s.getExtValueType(), s.getMessage(),
                 s.getParamJson());
     }
 

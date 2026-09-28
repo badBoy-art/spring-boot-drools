@@ -24,6 +24,8 @@ public class RuleStep {
     private String actionCode;
     private String extField;
     private String extValue;
+    /** 动作写值的类型：STRING / NUMBER / DECIMAL / BOOLEAN / EXPR（EXPR = 写多字段算式的结果） */
+    private String extValueType;
     private String message;
     /** 本步入参覆写（JSON，如 {"level":"${ext.approvalLevel}"}）：留空=用接口注册的入参模板 */
     private String paramJson;

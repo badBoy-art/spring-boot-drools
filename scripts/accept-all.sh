@@ -19,7 +19,7 @@ UNIT_FAIL=$(JAVA_HOME=${JDK8} ${MVN} -B test 2>&1 | grep -cE "BUILD FAILURE")
 
 TOTAL_PASS=0
 TOTAL_FAIL=0
-for s in decision-acceptance ops-prefix-acceptance ops-publish-acceptance; do
+for s in decision-acceptance ops-prefix-acceptance ops-publish-acceptance expr-acceptance; do
   echo "===== $s ====="
   out=$(bash "scripts/$s.sh" 2>&1)
   p=$(printf '%s' "$out" | grep -c "✅")

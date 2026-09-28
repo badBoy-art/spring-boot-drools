@@ -74,14 +74,18 @@ public class RuleStepBuilder {
             Matcher m = EXT_REF.matcher(condValue + "|" + str(raw.get("paramJson")));
             while (m.find()) upstream.add(m.group(1));
             for (String up : upstream) conds.add("ext[\"" + up + "\"] != null");
-            if (!condField.isEmpty()) {
-                // 运算符 + 取值类型 全部交给 DrlSyntax（Drools 运算符/类型全集只在那一个类里定义）
-                // 左侧：DocFact 走取值器 getNumber/getString；Order 事实走属性路径（支持嵌套与中文名）
-                String left = orderFact
-                        ? condField
-                        : ("NUMBER".equalsIgnoreCase(condType) || DrlSyntax.isNumeric(condType)
-                            ? "getNumber(\"" + condField + "\")"
-                            : "getString(\"" + condField + "\")");
+            if (!condField.isEmpty() && DrlSyntax.needsValue(condOp)) {
+                // 条件字段既可以是「已注册字段名」（或 object.field 路径），
+                // 也可以**直接写多字段算式**： (售价 - 成本) / 成本  →  (getNumber("售价") - getNumber("成本")) / getNumber("成本")
+                String left;
+                if (orderFact) {
+                    left = DrlSyntax.toFactExpression(condField, true);
+                } else if (DrlSyntax.looksLikeExpression(condField) || DrlSyntax.isNumeric(condType)
+                        || "NUMBER".equalsIgnoreCase(condType)) {
+                    left = DrlSyntax.toFactExpression(condField, false);
+                } else {
+                    left = "getString(\"" + condField + "\")";
+                }
                 conds.add(DrlSyntax.render(left, condOp, "${" + valueKey + "}", condType));
             }
             // 幂等标记必须按「规则」隔离：不同规则/不同类型可能作用在同一个单据上，
@@ -102,8 +106,31 @@ public class RuleStepBuilder {
                         + "引擎只输出决策，步骤动作目前只有「写单据字段」（打标 / 只加消息 先不开放）");
             }
             if (extField.isEmpty()) throw new IllegalArgumentException("第 " + no + " 步选了「写单据字段」但没填字段名");
-            rhs.append("        ").append(factVar).append(".getExt().put(\"").append(extField).append("\", \"")
-                    .append(extValue).append("\");\n");
+            // 写值的类型决定落库形态：字符串加引号、数字裸写（Map<String,Object> 里就是数字，不再是 "121"）
+            String valueType = defaultIfEmpty(str(raw.get("extValueType")), "STRING").toUpperCase();
+            String literal;
+            if ("NUMBER".equals(valueType) || "DOUBLE".equals(valueType)) {
+                literal = DrlSyntax.literal(DrlSyntax.normalizePercent(extValue), "DOUBLE");
+            } else if ("INT".equals(valueType) || "LONG".equals(valueType)) {
+                literal = DrlSyntax.literal(extValue, "INT");
+            } else if ("DECIMAL".equals(valueType)) {
+                literal = DrlSyntax.literal(extValue, "DECIMAL");
+            } else if ("BOOLEAN".equals(valueType)) {
+                literal = DrlSyntax.literal(extValue, "BOOLEAN");
+            } else if ("EXPR".equals(valueType)) {
+                // 写"多字段算式"的结果，如 instantid = (售价 - 成本) * 100
+                literal = DrlSyntax.toFactExpression(extValue, orderFact);
+                // RHS 里逐字段取值必须带事实变量前缀（$d.getNumber("x")）：裸的 getNumber 只在 LHS 约束里能解析
+                // —— 实测踩到：裸写会报 Unable to Analyse Expression（MVEL 解析不出 getNumber）
+                if (!orderFact) {
+                    literal = literal.replace("getNumber(\"", factVar + ".getNumber(\"")
+                            .replace("getString(\"", factVar + ".getString(\"");
+                }
+            } else {
+                literal = "\"" + escape(extValue) + "\"";
+            }
+            rhs.append("        ").append(factVar).append(".getExt().put(\"").append(extField).append("\", ")
+                    .append(literal).append(");\n");
             defaultMsg = "第" + no + "步[" + stepName + "]写入 " + extField + "=" + extValue;
             availableExt.add(extField);
             rhs.append("        ").append(factVar).append(".addRuleMessage(\"")
@@ -132,6 +159,7 @@ public class RuleStepBuilder {
             sv.put("actionCode", actionCode);
             sv.put("upstreamRefs", new ArrayList<String>(upstream));
             sv.put("message", defaultIfEmpty(message, defaultMsg));
+            sv.put("extValueType", defaultIfEmpty(str(raw.get("extValueType")), "STRING"));
             stepViews.add(sv);
         }
 
@@ -214,6 +242,7 @@ public class RuleStepBuilder {
             s.setActionCode(str(m.get("actionCode")));
             s.setExtField(str(m.get("extField")));
             s.setExtValue(str(m.get("extValue")));
+            s.setExtValueType(defaultIfEmpty(str(m.get("extValueType")), "STRING"));
             s.setMessage(str(m.get("message")));
             s.setParamJson(str(m.get("paramJson")));
             out.add(s);

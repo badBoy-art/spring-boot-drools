@@ -467,7 +467,10 @@ function renderSteps() {
         <span style="margin-left:auto"><button class="ghost danger" onclick="removeStep(${i})">删除这步</button></span></div>
       <div id="st-${i}" style="display:none"></div>
       <div class="grid">
-        <div><label>条件字段（留空=本步无条件）</label><select onchange="setStep(${i},'condField',this.value)">${docFieldOptions(doc, s.condField)}</select></div>
+        <div><label>条件字段（留空=本步无条件）</label><select onchange="setStep(${i},'condField',this.value)">${docFieldOptions(doc, s.condField)}</select>
+          <input style="margin-top:6px" value="${esc(s.condField)}" oninput="setStep(${i},'condField',this.value)"
+            placeholder="或直接写多字段算式：(售价 - 成本) / 成本"/>
+          <div class="sub">可写算式（多字段计算），引擎会翻译成 getNumber(...) 组合；字段名支持中文名与 fieldKey</div></div>
         <div><label>运算符（共 ${Object.keys(SYNTAX.operators || {}).length} 种）</label>
           <select title="${esc(valueHint(s.condOp))}" onchange="setStep(${i},'condOp',this.value)">${opOptions(s.condOp)}</select>
           <div class="sub">${esc(valueHint(s.condOp))}</div></div>
@@ -485,7 +488,13 @@ function renderSteps() {
         ${false ? `<div style="grid-column:span 3"><label>参数绑定：参数名 = 规则上下文取值（每行一条）</label>
             <textarea oninput="setStep(${i},'paramText',this.value)" placeholder="bizId = ${'${orderId}'}&#10;amount = ${'${totalAmount} * 0.01'}&#10;channel = 规则引擎">${esc(s.paramText || '')}</textarea>
             <div class="sub">取值可写：单据字段 ${'${orderId}'} / 嵌套路径 ${'${customer.level}'} / 表达式 ${'${totalAmount * 0.01}'} / 集合大小 ${'${items.size()}'} / 上一步回填 ${'${ext.approverId}'} / 常量（直接写文字）。留空 = 用接口模板里的默认取值。</div></div>` : ''}
-        ${s.actionType === 'SET_EXT' ? `<div><label>写入的取值</label><input value="${esc(s.extValue)}" oninput="setStep(${i},'extValue',this.value)" placeholder="L2"/></div>` : ''}
+        ${s.actionType === 'SET_EXT' ? `<div><label>写入的取值 + 值的类型</label>
+          <div style="display:flex;gap:8px">
+            <select onchange="setStep(${i},'extValueType',this.value)" style="max-width:160px">
+              ${['STRING','NUMBER','DECIMAL','INT','BOOLEAN','EXPR'].map(v => `<option value="${v}"${(s.extValueType || 'STRING') === v ? ' selected' : ''}>${v === 'STRING' ? 'STRING · 文本' : (v === 'NUMBER' ? 'NUMBER · 数字' : (v === 'DECIMAL' ? 'DECIMAL · 精确小数' : (v === 'INT' ? 'INT · 整数' : (v === 'BOOLEAN' ? 'BOOLEAN · 布尔' : 'EXPR · 多字段算式'))))}</option>`).join('')}</select>
+            <input value="${esc(s.extValue)}" oninput="setStep(${i},'extValue',this.value)" placeholder="L2 / 121 / 50% / (售价 - 成本) * 100"/>
+          </div>
+          <div class="sub">NUMBER/DECIMAL 写入的是数字（不是 "121"）；EXPR 直接写算式，引擎按字段算好再写入；百分比可直接写 50%</div></div>` : ''}
         <div><label>本步消息文案（可空，自动生成）</label><input value="${esc(s.message)}" oninput="setStep(${i},'message',this.value)" placeholder="毛利率达 ${'${step' + (i+1) + 'Value}'}，走 +2 级领导"/></div>
       </div>
       ${false && a ? `<div class="flow">
