@@ -1,0 +1,28 @@
+server:
+  port: ${SERVER_PORT:8080}
+spring:
+  application:
+    name: drools-rule-center
+  datasource:
+    url: ${RULE_CENTER_DB_URL:jdbc:mysql://127.0.0.1:3306/test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${RULE_CENTER_DB_USERNAME:root}
+    password: ${RULE_CENTER_DB_PASSWORD:zhaoZ1230}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+drools:
+  security:
+    author-username: ${RULE_CENTER_AUTHOR_USERNAME:}
+    author-password: ${RULE_CENTER_AUTHOR_PASSWORD:}
+    runtime-username: ${RULE_CENTER_RUNTIME_USERNAME:}
+    runtime-password: ${RULE_CENTER_RUNTIME_PASSWORD:}

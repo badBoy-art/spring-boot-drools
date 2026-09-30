@@ -1,0 +1,39 @@
+# Run from the repository root after mvn verify and database initialization.
+# TLS, database and secret delivery are configured by the deployment environment.
+services:
+  center:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.center
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      RULE_CENTER_DB_URL: ${RULE_CENTER_DB_URL:?required}
+      RULE_CENTER_DB_USERNAME: ${RULE_CENTER_DB_USERNAME:?required}
+      RULE_CENTER_DB_PASSWORD: ${RULE_CENTER_DB_PASSWORD:?required}
+      RULE_CENTER_AUTHOR_USERNAME: ${RULE_CENTER_AUTHOR_USERNAME:?required}
+      RULE_CENTER_AUTHOR_PASSWORD: ${RULE_CENTER_AUTHOR_PASSWORD:?required}
+      RULE_CENTER_RUNTIME_USERNAME: ${RULE_CENTER_RUNTIME_USERNAME:?required}
+      RULE_CENTER_RUNTIME_PASSWORD: ${RULE_CENTER_RUNTIME_PASSWORD:?required}
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.worker
+    restart: unless-stopped
+    depends_on:
+      - center
+    ports:
+      - "127.0.0.1:8090:8090"
+    environment:
+      WORKER_DB_URL: ${WORKER_DB_URL:?required}
+      WORKER_DB_USERNAME: ${WORKER_DB_USERNAME:?required}
+      WORKER_DB_PASSWORD: ${WORKER_DB_PASSWORD:?required}
+      RULE_CENTER_URL: http://center:8080
+      RULE_CENTER_RUNTIME_USERNAME: ${RULE_CENTER_RUNTIME_USERNAME:?required}
+      RULE_CENTER_RUNTIME_PASSWORD: ${RULE_CENTER_RUNTIME_PASSWORD:?required}
+      DROOLS_WORKER_USERNAME: ${DROOLS_WORKER_USERNAME:?required}
+      DROOLS_WORKER_PASSWORD: ${DROOLS_WORKER_PASSWORD:?required}
+      DROOLS_WORKER_NODE_ID: ${DROOLS_WORKER_NODE_ID:?must be unique}
+      DROOLS_WORKER_BASE_URL: ${DROOLS_WORKER_BASE_URL:?client reachable URL required}
+      DROOLS_WORKER_ALLOWED_FACT_TYPES: ${DROOLS_WORKER_ALLOWED_FACT_TYPES:-}

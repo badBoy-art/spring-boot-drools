@@ -1,0 +1,39 @@
+server:
+  port: ${SERVER_PORT:8090}
+spring:
+  application:
+    name: drools-runtime-worker
+  datasource:
+    url: ${WORKER_DB_URL:jdbc:mysql://127.0.0.1:3306/test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${WORKER_DB_USERNAME:root}
+    password: ${WORKER_DB_PASSWORD:zhaoZ1230}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  security:
+    user:
+      name: ${DROOLS_WORKER_USERNAME:}
+      password: ${DROOLS_WORKER_PASSWORD:}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+drools:
+  rule-center:
+    url: ${RULE_CENTER_URL:http://127.0.0.1:8080}
+    username: ${RULE_CENTER_RUNTIME_USERNAME:}
+    password: ${RULE_CENTER_RUNTIME_PASSWORD:}
+  session:
+    node-id: ${DROOLS_WORKER_NODE_ID:${HOSTNAME:local}}
+    lease-millis: ${DROOLS_SESSION_LEASE_MILLIS:30000}
+    max-snapshot-bytes: ${DROOLS_SESSION_MAX_SNAPSHOT_BYTES:67108864}
+  worker:
+    base-url: ${DROOLS_WORKER_BASE_URL:http://127.0.0.1:8090}
+    username: ${DROOLS_WORKER_USERNAME:}
+    password: ${DROOLS_WORKER_PASSWORD:}
+    allowed-fact-types: ${DROOLS_WORKER_ALLOWED_FACT_TYPES:}
+    maintenance-ms: ${DROOLS_WORKER_MAINTENANCE_MS:5000}
+    checkpoint-ms: ${DROOLS_WORKER_CHECKPOINT_MS:60000}

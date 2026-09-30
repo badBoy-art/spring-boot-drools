@@ -1,0 +1,142 @@
+{
+  "ruleType": "PRODUCT_MULTI_APPROVAL",
+  "releaseId": 3,
+  "revision": 3,
+  "docCode": "PRODUCT_SKU",
+  "bizId": "PRODUCT-001",
+  "decision": {
+    "spu": {
+      "spuCode": "SPU-001",
+      "spuName": "示例商品",
+      "salePrice": 140.0,
+      "costPrice": 100.0,
+      "instanceId": "T+2"
+    },
+    "sku": [
+      {
+        "skuCode": "SKU-001",
+        "salePrice": 140.0,
+        "costPrice": 100.0,
+        "stock": 20,
+        "instanceId": "T+2",
+        "marginRate": 0.4
+      },
+      {
+        "skuCode": "SKU-002",
+        "salePrice": 120.0,
+        "costPrice": 100.0,
+        "stock": 0,
+        "instanceId": "T",
+        "marginRate": 0.2
+      },
+      {
+        "skuCode": "SKU-003",
+        "salePrice": 0.13,
+        "costPrice": 0.1,
+        "stock": 10,
+        "instanceId": "T",
+        "marginRate": 0.3
+      }
+    ],
+    "regionPrice": [
+      {
+        "skuCode": "SKU-001",
+        "regionCode": "EAST",
+        "salePrice": 140.0,
+        "costPrice": 100.0,
+        "marketPrice": 150.0,
+        "instanceId": "T+2",
+        "marginRate": 0.4,
+        "priceDecision": "STANDARD"
+      },
+      {
+        "skuCode": "SKU-002",
+        "regionCode": "WEST",
+        "salePrice": 120.0,
+        "costPrice": 100.0,
+        "marketPrice": 110.0,
+        "instanceId": "T",
+        "marginRate": 0.2,
+        "priceDecision": "REVIEW"
+      },
+      {
+        "skuCode": "SKU-003",
+        "regionCode": "NORTH",
+        "salePrice": 0.13,
+        "costPrice": 0.1,
+        "marketPrice": 0.15,
+        "instanceId": "T",
+        "marginRate": 0.3,
+        "priceDecision": "STANDARD"
+      }
+    ]
+  },
+  "data": {
+    "bizId": "PRODUCT-001",
+    "spu": {
+      "spuCode": "SPU-001",
+      "spuName": "示例商品",
+      "salePrice": "140.00",
+      "costPrice": "100.00"
+    },
+    "sku": [
+      {
+        "skuCode": "SKU-001",
+        "salePrice": "140.00",
+        "costPrice": "100.00",
+        "stock": 20
+      },
+      {
+        "skuCode": "SKU-002",
+        "salePrice": "120.00",
+        "costPrice": "100.00",
+        "stock": 0
+      },
+      {
+        "skuCode": "SKU-003",
+        "salePrice": "0.13",
+        "costPrice": "0.10",
+        "stock": 10
+      }
+    ],
+    "regionPrice": [
+      {
+        "skuCode": "SKU-001",
+        "regionCode": "EAST",
+        "salePrice": "140.00",
+        "costPrice": "100.00",
+        "marketPrice": "150.00"
+      },
+      {
+        "skuCode": "SKU-002",
+        "regionCode": "WEST",
+        "salePrice": "120.00",
+        "costPrice": "100.00",
+        "marketPrice": "110.00"
+      },
+      {
+        "skuCode": "SKU-003",
+        "regionCode": "NORTH",
+        "salePrice": "0.13",
+        "costPrice": "0.10",
+        "marketPrice": "0.15"
+      }
+    ],
+    "业务单据编号": "PRODUCT-001"
+  },
+  "ext": {
+    "PRODUCT_MULTI_APPROVAL_DEFAULT_step1_done": true,
+    "instanceId": "T+2"
+  },
+  "messages": [
+    "第1步[SPU属性审批并赋值1个字段]写入 1 个返回字段",
+    "第2步[遍历每个SKU审批并赋值2个字段]写入 2 个返回字段",
+    "第2步[遍历每个SKU审批并赋值2个字段]写入 2 个返回字段",
+    "第2步[遍历每个SKU审批并赋值2个字段]写入 2 个返回字段",
+    "第3步[遍历每个区域价格审批并赋值3个字段]写入 3 个返回字段",
+    "第3步[遍历每个区域价格审批并赋值3个字段]写入 3 个返回字段",
+    "第3步[遍历每个区域价格审批并赋值3个字段]写入 3 个返回字段"
+  ],
+  "fired": 7,
+  "evalId": "7cc5d86e-bdb2-432a-947a-af967d571a69"
+}

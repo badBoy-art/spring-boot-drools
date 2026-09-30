@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>规则中台 · 配置台</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --panel:#fff; --line:#e6e8ec; --line2:#f0f1f4;
+    --txt:#1f2328; --sub:#6b7280; --pri:#2563eb; --pri-soft:#eff4ff;
+    --ok:#15803d; --ok-soft:#eefaf1; --warn:#b45309; --warn-soft:#fff7ed;
+    --err:#b91c1c; --err-soft:#fef2f2; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+  a{color:var(--pri);text-decoration:none}
+  /* 顶栏 */
+  .top{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);
+       display:flex;align-items:center;gap:22px;padding:0 26px;height:58px}
+  .logo{font-weight:700;font-size:15.5px;letter-spacing:.2px}
+  .logo small{font-weight:400;color:var(--sub);font-size:12px;margin-left:8px}
+  .tabs{display:flex;gap:4px;flex:1}
+  .tabs a{padding:7px 14px;border-radius:9px;color:var(--txt);font-weight:600;font-size:13.5px}
+  .tabs a:hover{background:var(--line2)}
+  .tabs a.on{background:var(--pri-soft);color:var(--pri)}
+  .stat{font-size:12.5px;color:var(--sub)}
+  .stat b{color:var(--txt)}
+  /* 布局 */
+  .wrap{max-width:1180px;margin:22px auto 60px;padding:0 22px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;margin-bottom:16px}
+  .head{display:flex;align-items:flex-start;gap:14px;margin-bottom:14px}
+  .head h2{margin:0;font-size:17px}
+  .head .desc{color:var(--sub);font-size:12.5px;margin-top:4px}
+  .head .acts{margin-left:auto;display:flex;gap:8px;flex-shrink:0}
+  .crumb{font-size:12.5px;color:var(--sub);margin-bottom:12px}
+  /* 按钮 */
+  button,.btn{font:600 13px/1 inherit;padding:9px 15px;border-radius:9px;border:1px solid var(--line);
+       background:#fff;color:var(--txt);cursor:pointer}
+  button:hover{border-color:#cfd3da;background:#fcfcfd}
+  .pri{background:var(--pri);border-color:var(--pri);color:#fff}
+  .pri:hover{background:#1d4ed8;border-color:#1d4ed8}
+  .ghost{border-color:transparent;background:transparent;color:var(--pri);padding:6px 8px}
+  .danger{color:var(--err);border-color:#f3d6d6}
+  button[disabled]{opacity:.5;cursor:not-allowed}
+  /* 列表 */
+  table{width:100%;border-collapse:collapse}
+  th{font-size:12px;color:var(--sub);text-align:left;font-weight:600;padding:9px 12px;background:#fafbfc;border-bottom:1px solid var(--line)}
+  td{padding:13px 12px;border-bottom:1px solid var(--line2);vertical-align:top}
+  tbody tr.row{cursor:pointer}
+  tbody tr.row:hover{background:#fcfdff}
+  .title{font-weight:600}
+  .sub{color:var(--sub);font-size:12.5px;margin-top:3px}
+  code{background:var(--line2);padding:1.5px 6px;border-radius:5px;font-size:12.5px;font-family:ui-monospace,Menlo,monospace}
+  /* 徽标 */
+  .tag{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);
+       background:#fafbfc;color:var(--sub);margin:2px 4px 0 0}
+  .tag.b{background:var(--pri-soft);border-color:#d6e2ff;color:var(--pri)}
+  .tag.g{background:var(--ok-soft);border-color:#cbe9d6;color:var(--ok)}
+  .tag.w{background:var(--warn-soft);border-color:#f6dfc7;color:var(--warn)}
+  .tag.r{background:var(--err-soft);border-color:#f6d5d5;color:var(--err)}
+  /* 详情 */
+  .kv{display:grid;grid-template-columns:132px 1fr;gap:10px 16px;font-size:13px}
+  .kv .k{color:var(--sub)}
+  pre{margin:8px 0 0;background:#0f172a;color:#e2e8f0;padding:14px 16px;border-radius:10px;
+      overflow:auto;font-size:12.5px;line-height:1.7;max-height:340px}
+  input,select,textarea{font:13.5px inherit;padding:9px 11px;border:1px solid var(--line);border-radius:9px;width:100%;background:#fff;color:var(--txt)}
+  textarea{min-height:74px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+  label{display:block;font-size:12px;color:var(--sub);margin:0 0 5px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .msg{margin-top:12px;font-size:13px;padding:10px 13px;border-radius:9px;display:none}
+  .msg.show{display:block}
+  .msg.ok{background:var(--ok-soft);color:var(--ok)}
+  .msg.err{background:var(--err-soft);color:var(--err)}
+  .empty{padding:34px;text-align:center;color:var(--sub);font-size:13px}
+  .steps th,.steps td{padding:10px}
+  .stepbar{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+  .stepno{width:24px;height:24px;border-radius:50%;background:var(--pri);color:#fff;font-size:12px;
+          font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .stepcard{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px;background:#fcfdff}
+  .flow{font-size:12.5px;color:var(--sub);margin-top:6px}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="logo">规则中台 <small>配置台 · 研发维护</small></div>
+  <nav class="tabs">
+    <a href="#/docs" id="tab-docs">单据注册</a>
+    
+    <a href="#/types" id="tab-types">规则类型与配置</a><button onclick="nativeTypeForm()">注册原生类型</button>
+  </nav>
+  <div class="stat">规则记录 <b id="st-rules">-</b> ｜ 发布候选 <b id="st-pub">-</b></div>
+</div>
+<div class="wrap" id="view"></div>
+<script>
+/* ============ 基础 ============ */
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let CSRF = null;
+const J = {method:'POST', headers:{'Content-Type':'application/json'}};
+async function api(path, opt) {
+  opt = Object.assign({}, opt || {});
+  opt.headers = Object.assign({}, opt.headers || {});
+  if (!['GET','HEAD'].includes(opt.method || 'GET')) {
+    if (!CSRF) { const token = await fetch('rule/csrf'); if (!token.ok) throw new Error('登录后重试'); CSRF = await token.json(); }
+    opt.headers[CSRF.headerName] = CSRF.token;
+    const match = path.match(/^rule\/(?:native\/publish\/|publish\/|status\/)?(\d+)$/);
+    if (match && opt.headers['If-Match'] == null) {
+      const rule = RULES.find(r => r.id === Number(match[1]));
+      if (rule) opt.headers['If-Match'] = String(rule.version);
+    }
+  }
+  const res = await fetch(path, opt);
+  const text = await res.text();
+  let body; try { body = text ? JSON.parse(text) : {}; } catch (e) { body = {message:text}; }
+  if (!res.ok) throw new Error(body.message || body.error || res.status);
+  return body;
+}
+const post = (p, b, version) => api(p, Object.assign({}, J, {headers:Object.assign({},J.headers,version == null ? {} : {"If-Match":String(version)}),body: JSON.stringify(b == null ? {} : b)}));
+const del  = p => api(p, {method:'DELETE'});
+const msg = (el, text, kind) => { const n = $(el); if (!n) return; n.className = 'msg show ' + (kind||'ok'); n.textContent = text; };
+let DOCS = [], TYPES = [], RULES = [], REFS = {docs:{}};
+
+/* ============ 语法清单：运算符/类型下拉都来自后端 DrlSyntax（不在前端另写一份） ============ */
+let SYNTAX = {operators: {}, types: {}, valueHint: {}};
+function opOptions(cur) {
+  const names = {'==':1,'!=':1,'>':1,'>=':1,'<':1,'<=':1};
+  const groups = [['比较', []], ['空值 / 集合', []], ['字符串', []], ['便利（自动转正则）', []]];
+  Object.keys(SYNTAX.operators || {}).forEach(k => {
+    const label = SYNTAX.operators[k];
+    const g = names[k] ? 0 : (k.indexOf('null') >= 0 || k.indexOf('in') >= 0 || k.indexOf('memberOf') >= 0 ? 1 : (k.indexOf('match') >= 0 || k === 'contains' || k === 'not contains' || k === 'soundslike' ? 2 : 3));
+    groups[g][1].push([k, label]);
+  });
+  return groups.filter(g => g[1].length).map(g =>
+    `<optgroup label="${esc(g[0])}">` + g[1].map(([k, label]) =>
+      `<option value="${esc(k)}"${k === cur ? ' selected' : ''}>${esc(k)} · ${esc(label)}</option>`).join('') + '</optgroup>').join('');
+}
+function typeOptions(cur) {
+  let out = '';
+  for (const k in (SYNTAX.types || {})) {
+    const v = SYNTAX.types[k];
+    if (v.indexOf('等同') >= 0 || v.indexOf('同 ') >= 0) { continue; }   // NUMBER/LIST 兼容别名不占位
+    out += `<option value="${esc(k)}"${k === cur ? ' selected' : ''}>${esc(k)} · ${esc(v)}</option>`;
+  }
+  return out;
+}
+function valueHint(op) {
+  return (SYNTAX.valueHint || {})[op] || '按运算符填取值；写 ${参数名} 表示"这条规则的参数"';
+}
+function outputJsonFields(rows) {
+  return (rows || []).map(x => ({
+    outputPath:x.outputPath, parentPath:x.parentPath || null, label:x.label,
+    nodeKind:x.nodeKind || 'LEAF', valueType:x.valueType || null,
+    source:x.source || null, sourceValue:x.sourceValue || null,
+    arrayFrom:x.arrayFrom || null, sortOrder:x.sortOrder || 1
+  }));
+}
+async function loadOutputTree(ruleType) {
+  const area = $('td-output-json'); if (!area) return;
+  try {
+    const rows = await api('rule/type/outputs/tree?ruleType=' + encodeURIComponent(ruleType));
+    area.value = JSON.stringify(outputJsonFields(rows), null, 2);
+    updateOutputPreview();
+  } catch (e) { msg('msg-output-json', e.message, 'err'); }
+}
+async function saveOutputJson(ruleType) {
+  try {
+    const fields = JSON.parse(($('td-output-json') || {}).value || '[]');
+    if (!Array.isArray(fields)) throw new Error('返回结构必须是 JSON 数组');
+    const result = await post('rule/type/outputs/tree', {ruleType, fields});
+    $('td-output-json').value = JSON.stringify(outputJsonFields(result.fields), null, 2);
+    updateOutputPreview();
+    msg('msg-output-json', result.message, 'ok');
+  } catch (e) { msg('msg-output-json', e.message, 'err'); }
+}
+async function loadCommon() {
+  const [d, t, r, refs, syn] = await Promise.all([
+    api('rule/doc/tree'), api('rule/type/list'),
+    api('rule/list'), api('rule/refs'),
+    api('rule/type/syntax')
+  ]);
+  DOCS = d; TYPES = t; RULES = r; REFS = refs; SYNTAX = syn;
+  $('st-rules').textContent = RULES.length;
+  $('st-pub').textContent = RULES.filter(r => r.status === 1).length;
+}
+/* ============ ① 单据注册：列表 + 详情 ============ */
+function docsList() {
+  const rows = DOCS.map(d => {
+    const ref = REFS.docs[d.docCode] || {refCount:0};
+    const objs = (d.tree || []).length;
+    return `<tr class="row" onclick="location.hash='#/docs/${esc(d.docCode)}'">
+      <td><div class="title">${esc(d.docName)}</div><div class="sub"><code>${esc(d.docCode)}</code>${d.remark ? ' ｜ ' + esc(d.remark) : ''}</div></td>
+      <td>${objs} 个对象<div class="sub">${d.fieldCount} 个字段</div></td>
+      <td>${refBadge('doc', d.docCode)}</td>
+      <td style="text-align:right"><button onclick="event.stopPropagation();location.hash='#/docs/${esc(d.docCode)}'">查看</button></td>
+    </tr>`;
+  }).join('');
+  return card('单据', '一个单据注册一次，可被多个规则类型 / 多条规则 / 多个接口引用（一处注册，多处调用）',
+    `<button class="pri" onclick="toggleNew('new-doc')">+ 新建单据</button>`,
+    `<div id="new-doc" style="display:none" class="stepcard">
+     <div class="grid">
+         <div><label>单据编码 docCode（大写字母/数字/下划线）</label><input id="d-code" placeholder="SKU"/></div>
+         <div><label>单据名称</label><input id="d-name" placeholder="商品"/></div>
+         <div><label>说明</label><input id="d-remark" placeholder="商品主数据"/></div>
+       </div>
+       <div style="margin-top:12px"><button class="pri" onclick="saveDoc()">新建单据</button>
+         <button onclick="toggleNew('new-doc')">取消</button></div>
+       <div class="msg" id="msg-doc"></div>
+     </div>` +
+    (rows ? `<table><thead><tr><th style="width:36%">单据</th><th style="width:20%">结构</th><th>被引用（一处注册，多处调用）</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+          : '<div class="empty">还没有单据，点右上「+ 新建单据」</div>'));
+}
+
+function docDetail(code) {
+  const d = DOCS.find(x => x.docCode === code);
+  if (!d) return card('单据不存在', '', '', '<div class="empty">找不到 ' + esc(code) + '</div>');
+  const ref = REFS.docs[code] || {refCount:0};
+  const objs = (d.tree || []).map(o => objBlock(code, o)).join('');
+  const delBtn = ref.refCount > 0
+    ? `<button disabled title="被引用中，先处理引用再删">删除单据</button>`
+    : `<button class="danger" onclick="removeDoc('${esc(code)}')">删除单据</button>`;
+  return `<div class="crumb"><a href="#/docs">单据</a> / ${esc(d.docName)}</div>` +
+    card(`${esc(d.docName)} <code>${esc(d.docCode)}</code>`, '单据详情：对象结构 + 字段；字段的「计算表达式」就是派生指标（如毛利率）',
+      `${delBtn}<button onclick="toggleNew('new-obj')">+ 新建对象</button>`,
+      `<div class="kv">
+         <div class="k">单据编码</div><div><code>${esc(d.docCode)}</code></div>
+         <div class="k">说明</div><div>${esc(d.remark || '-')}</div>
+         <div class="k">派生字段（多字段表达式）</div><div>
+           ${(function(){ const out=[]; const walk=(ns)=>(ns||[]).forEach(o=>{ (o.fields||[]).forEach(f=>{ if (f.expr) out.push('<span class="tag b">' + esc(f.fieldName) + ' = ' + esc(f.expr) + '</span>'); }); walk(o.children); }); walk(d.tree);
+             return out.join(' ') || '<span class="sub">暂无：给字段填「计算表达式」即成为派生字段（如 毛利率 = (售价 - 成本) / 成本；可引用其它字段的中文名或 fieldKey，也可以引用另一个派生字段，引擎按依赖顺序算）</span>'; })()}
+         </div>
+         <div class="k">字段总数</div><div>${d.fieldCount} 个</div>
+         <div class="k">被引用</div><div>${refBadge('doc', code)}</div>
+       </div>
+       <div id="new-obj" style="display:none" class="stepcard" style="margin-top:14px">
+         <div class="grid">
+           <div><label>对象标识 objectKey</label><input id="o-key" placeholder="customer"/></div>
+           <div><label>对象中文名</label><input id="o-name" placeholder="客户"/></div>
+           <div><label>父对象（空=根对象）</label><select id="o-parent"></select></div>
+           <div><label>是否数组对象</label><select id="o-coll"><option value="0">否</option><option value="1">是（按 items[0] 取）</option></select></div>
+           <div><label>取值路径</label><input id="o-path" placeholder="items[0]"/></div>
+         </div>
+         <div style="margin-top:12px"><button class="pri" onclick="saveObj('${esc(code)}')">新建对象</button>
+           <button onclick="toggleNew('new-obj')">取消</button></div>
+         <div class="msg" id="msg-obj"></div>
+       </div>` + objs);
+}
+
+function objBlock(code, o) {
+  const fields = (o.fields || []).map(f => `<tr>
+      <td>${esc(f.fieldName)}<div class="sub"><code>${esc(f.fieldKey)}</code></div></td>
+      <td>${esc(f.fieldType)}</td>
+      <td>${f.expr ? '<span class="tag b">计算 ' + esc(f.expr) + '</span>' : (esc(f.exampleValue || '-'))}</td>
+      <td>${esc(f.fieldDesc || '-')}</td>
+      <td style="text-align:right">
+        <button class="ghost" onclick="copyTxt('\${${esc(f.fieldKey)}}')">复制取值</button>
+        <button class="ghost" onclick="loadFieldForm('${esc(code)}','${esc(o.objectKey)}','${esc(f.fieldKey)}')">编辑</button>      </td></tr>`).join('');
+  return `<div class="stepcard">
+    <div class="stepbar">
+      <span class="stepno" style="background:#0f172a">${o.isCollection === 1 ? '[]' : '{}'}</span>
+      <b>${esc(o.objectName)}</b>
+      <code>${esc(o.objectKey)}</code>
+      <span class="sub">${o.valuePath ? '路径 ' + esc(o.valuePath) : ''}${o.remark ? ' ｜ ' + esc(o.remark) : ''}</span>
+      <span style="margin-left:auto"><button onclick="toggleNew('new-field-${esc(o.objectKey)}')">+ 新建字段</button></span>
+    </div>
+    ${fields ? `<table><thead><tr><th style="width:22%">字段</th><th style="width:12%">类型</th><th style="width:20%">示例 / 计算</th><th>说明</th><th></th></tr></thead><tbody>${fields}</tbody></table>`
+             : '<div class="sub">（该对象下还没有字段）</div>'}
+    <div id="new-field-${esc(o.objectKey)}" style="display:none;margin-top:12px">
+      <div class="grid">
+        <div><label>字段中文名</label><input id="f-${esc(o.objectKey)}-name" placeholder="毛利率"/></div>
+        <div><label>fieldName 取值路径</label><input id="f-${esc(o.objectKey)}-key" placeholder="(price - cost) * 1.0 / price"/></div>
+        <div><label>类型</label><select id="f-${esc(o.objectKey)}-type"><option>STRING</option><option>NUMBER</option><option>DECIMAL</option><option>BOOL</option></select></div>
+        <div><label>示例值</label><input id="f-${esc(o.objectKey)}-ex" placeholder="0.35"/></div>
+        <div><label>说明</label><input id="f-${esc(o.objectKey)}-desc" placeholder="派生字段：(售价-成本)/售价"/></div>
+        <div><label>计算表达式（可空；填了就是派生字段，引擎进规则前先算好）</label><input id="f-${esc(o.objectKey)}-expr" placeholder="(price - cost) * 1.0 / price"/></div>
+      </div>
+      <div style="margin-top:12px"><button class="pri" onclick="saveField('${esc(code)}','${esc(o.objectKey)}')">新建字段</button>
+        <button onclick="toggleNew('new-field-${esc(o.objectKey)}')">取消</button></div>
+      <div class="msg" id="msg-f-${esc(o.objectKey)}"></div>
+    </div>
+    ${(o.children || []).map(c => objBlock(code, c)).join('')}
+  </div>`;
+}
+
+function refBadge(kind, key) {
+  const item = REFS.docs[key];
+  if (!item || !item.refCount) return '<span class="tag">未被引用（可安全删除）</span>';
+  const map = [['types','类型'],['rules','规则']];
+  return map.filter(([f]) => (item[f]||[]).length)
+    .map(([f,label]) => (item[f]||[]).map(x => `<span class="tag b">${label} ${esc(x)}</span>`).join('')).join('');
+}
+function card(title, desc, acts, body) {
+  return `<div class="card"><div class="head"><div><h2>${title}</h2>${desc ? '<div class="desc">' + desc + '</div>' : ''}</div>
+    <div class="acts">${acts || ''}</div></div>${body || ''}</div>`;
+}
+function toggleNew(id) { const n = $(id); if (n) n.style.display = n.style.display === 'none' ? 'block' : 'none'; }
+function copyTxt(t) { try { navigator.clipboard.writeText(t); } catch (e) {} }
+
+/* ============ ③ 规则类型：列表 + 详情（含步骤编排） ============ */
+const isStepType = t => /^step\d+Action$/.test((t.fields||[]).map(f => f.fieldKey).join(',')) || (t.templateBody||'').indexOf('@RULE@') >= 0;
+
+function typesList() {
+  const rows = TYPES.map(t => {
+    const n = RULES.filter(r => r.ruleType === t.ruleType).length;
+    const stepType = isStepType(t);
+    return `<tr class="row" onclick="location.hash='#/types/${esc(t.ruleType)}'">
+      <td><div class="title">${esc(t.typeName)}</div><div class="sub"><code>${esc(t.ruleType)}</code> ｜ 分组 ${esc(t.ruleGroup||'-')}</div></td>
+      <td>${stepType ? '<span class="tag b">步骤链</span>' : '<span class="tag">单条件</span>'}
+          <div class="sub">${(t.fields||[]).length} 个参数</div></td>
+      <td>${n} 条规则${t.builtin ? ' <span class="tag">内置</span>' : ''}</td>
+      <td>${t.outputNodeCount ? `<span class="tag b">${t.outputNodeCount} 个返回节点</span>` : '<span class="tag w">未注册</span>'}</td>
+      <td style="text-align:right"><button onclick="event.stopPropagation();location.hash='#/types/${esc(t.ruleType)}'">查看</button></td>
+    </tr>`;
+  }).join('');
+  return card('规则类型', '规则类型 = 条件 + 动作 + 返回结构（decision 字段在类型上注册）。步骤链模式下，每一步「先判什么、再写哪个字段」都在这里定，后续步骤可直接引用前面写入的字段',
+    `<button class="pri" onclick="location.hash='#/types/new'">+ 新建规则类型</button>`,
+    rows ? `<table><thead><tr><th style="width:40%">类型</th><th style="width:18%">模式</th><th>规则数</th><th style="width:22%">返回结构（decision）</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+         : '<div class="empty">还没有规则类型</div>');
+}
+
+/* ===== 返回结果结构（决策输出字段）：规则类型上注册 → 业务调用后拿到的 decision ===== */
+function outputsCard(t) {
+  return card('返回结果结构', '配置决定 decision 的形状。保存草稿后，重新发布规则类型才会生效。', '',
+    `     <div style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
+       <div class="head"><div><h2 style="font-size:14px">层级返回字段与取值</h2><div class="desc">按 outputPath / parentPath 组成对象树。OBJECT 是对象，ARRAY 是集合，LEAF 是实际字段；每个叶子可绑定规则赋值、入参透传、表达式或常量。</div></div>
+         <div class="acts"><button class="pri" onclick="saveOutputJson('${esc(t.ruleType)}')">保存 JSON 返回结构</button></div></div>
+       <textarea id="td-output-json" oninput="updateOutputPreview()" style="min-height:250px" spellcheck="false" placeholder='[{"outputPath":"result","parentPath":null,"label":"结果","nodeKind":"OBJECT"},{"outputPath":"result.marginRate","parentPath":"result","label":"毛利率","nodeKind":"LEAF","valueType":"DECIMAL","source":"DATA","sourceValue":"grossMarginRate","sortOrder":1}]'></textarea>
+       <div class="sub">字段定义：outputPath 是返回路径；parentPath 是父对象/数组；nodeKind 选择 OBJECT/ARRAY/LEAF；valueType 是结果类型。数组用 arrayFrom 绑定单据集合（如 data.spu.skus），子字段按每条元素映射。EXT 的 sourceValue 必须与步骤输出 key 一致。</div>
+       <label style="margin-top:10px">字段赋值说明（逐层展示路径、来源和来源值）</label><pre id="td-structure-preview" style="margin:0;padding:10px;background:#0f172a;color:#e2e8f0;border-radius:8px;font-size:12px;line-height:1.5;overflow:auto"></pre>
+       <div class="sub">EXT：在“步骤链”中给同名输出字段赋值；DATA：从单据入参按路径透传；EXPR：用入参字段计算；CONST：返回 sourceValue 中的常量。数组子字段的 DATA/EXPR/EXT 都按当前集合元素取值。</div>
+       <div class="msg" id="msg-output-json"></div>
+     </div>`);
+}
+function updateOutputPreview() {
+  const pre = $('td-outputs-preview') || $('t-outputs-preview');
+  const area = $('td-output-json') || $('t-output-json');
+  const structurePre = $('td-structure-preview') || $('t-structure-preview');
+  if (!area || !structurePre) return;
+  try {
+    const rows = JSON.parse(area.value || '[]');
+    structurePre.textContent = outputAssignmentPreview(rows);
+    if (rows.length && pre) pre.textContent = JSON.stringify({decision: outputShapePreview(rows)}, null, 2);
+  } catch (e) {
+    structurePre.textContent = 'JSON 尚未完成：' + e.message;
+  }
+}
+function outputSourceDescription(node) {
+  const source = node.source || 'DATA';
+  const labels = {EXT:'规则步骤赋值', DATA:'单据入参透传', EXPR:'字段表达式计算', CONST:'固定常量'};
+  return `${labels[source] || source} · ${node.sourceValue || '(未设置)'}`;
+}
+function outputShapePreview(rows) {
+  const children = parent => rows.filter(x => (x.parentPath || null) === parent)
+    .sort((a, b) => (a.sortOrder || 1) - (b.sortOrder || 1));
+  const object = parent => {
+    const result = {};
+    children(parent).forEach(node => {
+      const key = node.outputPath.split('.').pop();
+      if (node.nodeKind === 'OBJECT') result[key] = object(node.outputPath);
+      else if (node.nodeKind === 'ARRAY') result[key] = [object(node.outputPath)];
+      else result[key] = `<${node.valueType || 'STRING'} · ${outputSourceDescription(node)}>`;
+    });
+    return result;
+  };
+  return object(null);
+}
+function outputAssignmentPreview(rows) {
+  const children = parent => rows.filter(x => (x.parentPath || null) === parent)
+    .sort((a, b) => (a.sortOrder || 1) - (b.sortOrder || 1));
+  const lines = [];
+  const walk = (parent, depth) => children(parent).forEach(node => {
+    const indent = '  '.repeat(depth);
+    const kind = node.nodeKind || 'LEAF';
+    if (kind === 'OBJECT') {
+      lines.push(`${indent}${node.label || node.outputPath}  [OBJECT]`);
+      walk(node.outputPath, depth + 1);
+    } else if (kind === 'ARRAY') {
+      lines.push(`${indent}${node.label || node.outputPath}  [ARRAY ← ${node.arrayFrom || '(未配置来源)'}]`);
+      walk(node.outputPath, depth + 1);
+    } else {
+      lines.push(`${indent}${node.label || node.outputPath}  [${node.outputPath}] ← ${outputSourceDescription(node)} (${node.valueType || 'STRING'})`);
+    }
+  });
+  walk(null, 0);
+  return lines.length ? lines.join('\n') : '尚未配置返回字段';
+}
+
+function typeDetail(code) {
+  const t = TYPES.find(x => x.ruleType === code);
+  if (!t) return card('规则类型不存在', '', '', '<div class="empty">找不到 ' + esc(code) + '</div>');
+  const mine = RULES.filter(r => r.ruleType === code);
+  const stepType = isStepType(t);
+  const stepPanel = stepType ? `<div id="steps-box"><div class="sub">加载步骤链…</div></div>` : '';
+  const ruleRows = mine.map(r => `<tr>
+      <td><div class="title">${esc(r.ruleName)} ${String(r.drlContent||'').startsWith('// @rule-source-mode: NATIVE_DRL') ? '<span class="tag b">原生 DRL</span>' : ''}</div><div class="sub">v${r.version} ｜ ${r.status === 1 ? '<span class="tag g">发布候选</span>' : '<span class="tag">草稿</span>'}</div></td>
+      <td>${String(r.drlContent||'').startsWith('// @rule-source-mode: NATIVE_DRL') ? 'DRL 原文（不经过模板翻译）' : `<code>${esc(r.ruleParams||'{}')}</code>`}</td>
+      <td style="text-align:right">
+        ${String(r.drlContent||'').startsWith('// @rule-source-mode: NATIVE_DRL') ? `<button class="ghost" onclick="editNativeRule(${r.id})">编辑 DRL</button>` : `<button class="ghost" onclick="editConfiguredRule(${r.id})">修改参数</button>`}
+        <button class="ghost" onclick="showDrl(${r.id})">看 DRL</button>
+        <button class="ghost" onclick="toggleRule(${r.id},${r.status === 1 ? 0 : 1})">${r.status === 1 ? '停用' : '启用'}</button>
+        <button class="ghost" onclick="delRule(${r.id})">删除</button>
+      </td></tr>`).join('');
+  return `<div class="crumb"><a href="#/types">规则类型</a> / ${esc(t.typeName)}</div>` +
+    card(`${esc(t.typeName)} <code>${esc(t.ruleType)}</code>`, stepType ? '步骤链：一步一个条件 + 一个动作（写单据字段）；前一步写入的字段（ext）可被后面步骤直接引用' : '单条件单动作类型',
+      `${t.builtin ? '' : `<button onclick="location.hash='#/types/edit/${esc(code)}'">编辑类型</button>`}<button onclick="toggleNew('new-rule')">+ 结构化快捷配置</button><button class="pri" onclick="toggleNativeRule()">+ 完整 DRL</button>`,
+      `<div class="kv">
+         <div class="k">分组</div><div>${esc(t.ruleGroup||'-')}</div>
+         <div class="k">内置/自定义</div><div>${t.builtin ? '内置（系统维护）' : '自定义'}</div>
+         <div class="k">返回结构（decision 字段数）</div><div>${t.outputNodeCount ? `<span class="tag b">${t.outputNodeCount} 个返回节点</span>` : '<span class="tag w">未注册</span>'}</div>
+         <div class="k">参数</div><div>${(t.fields||[]).map(f => `<span class="tag b">${esc(f.fieldName)} <code>${esc(f.fieldKey)}</code>${f.defaultValue ? ' 默认=' + esc(f.defaultValue) : ''}</span>`).join(' ') || '-'}</div>
+       </div>${stepPanel}
+       <input type="hidden" id="configured-rule-id"/><div id="new-rule" style="display:none" class="stepcard" style="margin-top:14px">
+         <div class="sub">结构化表单覆盖常用条件和动作，适合运营快速配置；Drools 的表达式/条件元素组合无法由有限表单完整枚举。需要任意原生语法、多个事实组合或规则属性时，请用旁边的「完整 DRL」模式。</div>
+         <div class="grid">
+           <div><label>规则名（唯一）</label><input id="r-name" placeholder="${esc(code)}_1"/></div>
+           ${(t.fields||[]).map(f => `<div><label>${esc(f.fieldName)}</label>${paramInput(f)}</div>`).join('')}
+         </div>
+         <div style="margin-top:12px"><button class="pri" onclick="createRule('${esc(code)}')">保存并发布</button>
+           <button onclick="toggleNew('new-rule')">取消</button></div>
+       <div class="msg" id="msg-rule"></div>
+       </div>
+       <div id="native-rule-editor" style="display:none;margin-top:12px" class="stepcard">
+         <div class="head"><div><h2 style="font-size:14px">完整 DRL（原生语法）</h2><div class="desc">表达式无法靠有限表单穷举；这里接受完整 DRL 源码并直接交给 Drools 7.73 编译，不注入固定 package/import/dialect，也不经表达式翻译。RHS 是可执行代码，仅允许可信规则管理员维护。</div></div></div>
+         <input id="native-rule-id" type="hidden"/>
+         <div class="grid"><div><label>规则记录名称（唯一）</label><input id="native-rule-name" placeholder="SKU_NATIVE_RULE"/></div>
+           <div style="grid-column:span 2"><label>DRL 原文</label><textarea id="native-rule-source" style="min-height:300px" spellcheck="false" placeholder='package com.example.rules;\nimport com.example.drools.domain.DocFact;\nrule "NativeRule"\n  salience 10\n  when\n    $f : DocFact(docCode == "SKU")\n  then\n    // 原生 Drools RHS\nend'></textarea></div></div>
+         <div class="sub">可使用 Drools 支持的 DRL 条件元素与表达式、任意事实类型、rule attributes、functions、queries、globals、from/collect/accumulate、agenda group、entry point、declare/event 等；具体 Java 类型须位于业务 SDK 运行进程的 classpath。</div>
+         <div style="margin-top:10px"><button class="pri" onclick="saveNativeRule('${esc(code)}')">编译并发布</button> <button onclick="toggleNativeRule(false)">关闭</button></div>
+         <div class="msg" id="msg-native-rule"></div>
+       </div>`)
+    + releaseCard(code)
+    + outputsCard(t)
+    + card('该类型下的规则', '规则列表表示下一次发布候选；线上版本以发布历史中的当前修订为准',
+      '', ruleRows ? `<table><thead><tr><th style="width:32%">规则</th><th>参数</th><th></th></tr></thead><tbody>${ruleRows}</tbody></table>`
+                  : '<div class="empty">还没有规则，点右上「+ 新建规则」</div>')
+    + card('试算', '用一段单据报文跑一遍引擎：能看到命中哪些规则、接口回填了什么、每步消息',
+      `<button onclick="probe('${esc(code)}')">试算</button>`,
+      `<div class="grid" style="margin-top:12px"><div style="grid-column:span 3">
+         <label>单据报文（与本类型绑定的单据结构一致）</label><textarea id="p-fact">{"bizId":"example-1"}</textarea></div></div>
+       <div class="grid" style="margin-top:10px"><div><label>单据编码 docCode</label><input id="p-doc" value="${esc(t.docCode||'')}" readonly/></div></div>
+       <div class="msg" id="msg-probe"></div><pre id="p-out" style="display:none"></pre>`);
+}
+
+function paramInput(f) {
+  if (/^step\d+Action$/.test(f.fieldKey)) {
+    return `<input id="rp-${esc(f.fieldKey)}" value="${esc(f.defaultValue || '')}"/>`;
+  }
+  if (f.enumOptions) {
+    return `<select id="rp-${esc(f.fieldKey)}">${String(f.enumOptions).split(',').map(o => `<option${o.trim() === f.defaultValue ? ' selected' : ''}>${esc(o.trim())}</option>`).join('')}</select>`;
+  }
+  return `<input id="rp-${esc(f.fieldKey)}" value="${esc(f.defaultValue == null ? '' : f.defaultValue)}"/>`;
+}
+function paramValues(ruleType) {
+  const t = TYPES.find(x => x.ruleType === ruleType) || {};
+  const o = {};
+  (t.fields||[]).forEach(f => { const el = $('rp-' + f.fieldKey); if (el) o[f.fieldKey] = f.fieldType === 'NUMBER' ? Number(el.value) : el.value; });
+  return o;
+}
+
+/* ============ ③ 新建规则类型：步骤链编辑器 ============ */
+let ED = {steps: []};
+
+function typeEditor(typeMeta, outputRows) {
+  const editing = !!typeMeta;
+  const outputJson = JSON.stringify(outputJsonFields(outputRows || []), null, 2);
+  const parametersJson = JSON.stringify(((typeMeta || {}).fields || []).filter(f => !/^step\d+Value$/.test(f.fieldKey)).map(f => ({fieldKey:f.fieldKey, fieldName:f.fieldName, fieldType:f.fieldType, defaultValue:f.defaultValue, minValue:f.minValue, maxValue:f.maxValue, enumOptions:f.enumOptions, placeholder:f.placeholder})), null, 2);
+  return card(editing ? `编辑规则类型 <code>${esc(typeMeta.ruleType)}</code>` : '新建规则类型', '配置单据、规则步骤，以及供业务调用方消费的返回结果结构。返回结构单独保存为一个分组。',
+    `<button onclick="previewType()">预览 DRL</button><button class="pri" onclick="saveType()">${editing ? '保存修改' : '保存类型'}</button>`,
+    `<div class="grid">
+       <div><label>类型编码 ruleType</label><input id="t-code" ${editing ? 'readonly' : ''} value="${editing ? esc(typeMeta.ruleType) : ''}" placeholder="SKU_APPROVAL_3STEP"/></div>
+       <div><label>类型名称</label><input id="t-name" value="${editing ? esc(typeMeta.typeName) : ''}" placeholder="商品审批链路"/></div>
+       <div><label>绑定单据（通用单据载体 DocFact）</label><select id="t-doc">${DOCS.map(d => `<option value="${esc(d.docCode)}"${editing && d.docCode === typeMeta.docCode ? ' selected' : ''}>${esc(d.docName)}（${esc(d.docCode)}）</option>`).join('')}</select></div>
+       <div><label>分组</label><input id="t-group" value="${editing ? esc(typeMeta.ruleGroup || 'approval') : 'approval'}"/></div>
+       <div><label>排序</label><input id="t-sort" value="${editing ? esc(typeMeta.sortOrder || 60) : '60'}"/></div>
+     </div>
+     <div style="margin-top:16px"><label>自定义规则参数（JSON 数组，可供多字段赋值表达式引用）</label>
+       <textarea id="t-parameters" spellcheck="false" style="min-height:110px">${esc(parametersJson)}</textarea>
+       <div class="sub">定义 fieldKey、fieldName、fieldType、defaultValue；可选 minValue/maxValue。步骤表达式使用占位符引用，例如 ${'${marginThreshold}'}。发布规则时可修改参数值。</div></div>
+     <div class="stepcard" style="margin-top:16px;border:2px solid #c7d2fe;background:#f8faff">
+       <div class="stepbar"><span class="stepno" style="background:#4338ca">JSON</span><b>返回结果</b><span class="sub">独立配置输出字段、层级和取值来源</span></div>
+       <div class="grid">
+       <div style="grid-column:span 3"><label>层级 JSON 字段定义（必填）</label>
+         <textarea id="t-output-json" oninput="updateOutputPreview()" style="min-height:240px" spellcheck="false" placeholder='[{"outputPath":"result","parentPath":null,"label":"结果","nodeKind":"OBJECT"},{"outputPath":"result.marginRate","parentPath":"result","label":"毛利率","nodeKind":"LEAF","valueType":"DECIMAL","source":"DATA","sourceValue":"grossMarginRate","sortOrder":1},{"outputPath":"result.decision","parentPath":"result","label":"判定","nodeKind":"LEAF","valueType":"STRING","source":"EXT","sourceValue":"marginDecision","sortOrder":2}]'>${editing ? esc(outputJson) : ''}</textarea>
+         <div class="sub">OBJECT/ARRAY 节点用 parentPath 连接层级；LEAF 的 valueType + source + sourceValue 决定执行时赋值。EXT 读取规则写入值，DATA 透传单据值，EXPR 计算表达式，CONST 返回常量；数组可用 arrayFrom 指定 data.items 或 ext.badItems。</div></div>
+       <div style="grid-column:span 3"><label>返回层级与字段赋值说明（实时预览）</label><pre id="t-structure-preview" style="margin:0;padding:10px;background:#0f172a;color:#e2e8f0;border-radius:8px;font-size:12px;line-height:1.5;overflow:auto"></pre>
+         <div class="sub">EXT 对应步骤链 outputs 中的 outputKey；DATA 读取单据字段；EXPR 用多个入参字段计算；CONST 返回固定值。ARRAY 下的叶子按当前集合元素逐项取值或赋值。</div></div>
+       </div>
+     </div>
+     <div class="stepbar" style="margin-top:18px"><span class="stepno" style="background:#0f172a">≡</span><b>步骤链</b>
+       <span class="sub">按从上到下执行</span>
+       <span style="margin-left:auto"><button onclick="addStep()">+ 添加步骤</button></span></div>
+     <div id="ed-steps"></div>
+     <div id="ed-preview"></div>
+     <div class="msg" id="msg-type"></div>`);
+}
+
+function docFieldOptions(docCode, cur) {
+  const d = DOCS.find(x => x.docCode === docCode);
+  const out = ['<option value="">（无条件：任何单据都执行）</option>'];
+  const walk = (nodes) => (nodes || []).forEach(o => {
+    (o.fields || []).forEach(f => out.push(`<option value="${esc(f.fieldKey)}"${f.fieldKey === cur ? ' selected' : ''}>${esc(f.fieldName)}（${esc(f.fieldKey)}）</option>`));
+    walk(o.children);
+  });
+  walk(d && d.tree);
+  return out.join('');
+}
+function refVars(stepIdx) {
+  const vars = [];
+  ED.steps.slice(0, stepIdx).forEach(s => {
+    (s.outputs || []).forEach(o => { if (o.outputKey) vars.push(o.outputKey); });
+  });
+  return vars;
+}
+function addStep() {
+  ED.steps.push({stepName:'', condField:'', condOp:'>=', condType:'NUMBER', condValue:'', condScope:'DOC', collectionPath:'', nthIndex:'', actionType:'SET_EXT', outputs:[{outputKey:'',valueType:'STRING',expression:''}], message:''});
+  renderSteps();
+}
+function removeStep(i) { ED.steps.splice(i, 1); renderSteps(); }
+function setStep(i, k, v) { ED.steps[i][k] = v; if (['condField','condScope','collectionPath'].includes(k)) renderSteps(); }
+function addStepOutput(i) { if (!ED.steps[i].outputs) ED.steps[i].outputs = []; ED.steps[i].outputs.push({outputKey:'',valueType:'STRING',expression:''}); renderSteps(); }
+function removeStepOutput(i, j) { ED.steps[i].outputs.splice(j, 1); renderSteps(); }
+function setStepOutput(i, j, key, value) { ED.steps[i].outputs[j][key] = value; }
+
+/* 单据里的数组对象（is_collection=1），供「明细行校验」选明细对象 */
+function collectionOptions(docCode, cur) {
+  const d = DOCS.find(x => x.docCode === docCode);
+  const out = ['<option value="">（选明细对象）</option>'];
+  const walk = (nodes) => (nodes || []).forEach(o => {
+    if (o.isCollection === 1) out.push(`<option value="${esc(o.objectKey)}"${o.objectKey === cur ? ' selected' : ''}>${esc(o.objectName)}（${esc(o.objectKey)}）</option>`);
+    walk(o.children);
+  });
+  walk(d && d.tree);
+  return out.join('');
+}
+
+/* 明细对象下的「行内字段」（相对字段名，如 price / sku / product.category），供 EACH/NTH 条件选字段 */
+function collectionFieldOptions(docCode, collectionPath, cur) {
+  const d = DOCS.find(x => x.docCode === docCode);
+  const out = ['<option value="">（选行内字段）</option>'];
+  const walk = (nodes) => (nodes || []).forEach(o => {
+    if (o.objectKey === collectionPath) {
+      (o.fields || []).forEach(f => {
+        if (f.fieldKey && !f.fieldKey.includes('(') && !f.fieldKey.includes('['))
+          out.push(`<option value="${esc(f.fieldKey)}"${f.fieldKey === cur ? ' selected' : ''}>${esc(f.fieldName)}（${esc(f.fieldKey)}）</option>`);
+      });
+      (o.children || []).forEach(c => {
+        (c.fields || []).forEach(f => {
+          if (f.fieldKey && !f.fieldKey.includes('(') && !f.fieldKey.includes('['))
+            out.push(`<option value="${esc(f.fieldKey)}"${f.fieldKey === cur ? ' selected' : ''}>${esc(f.fieldName)}（${esc(f.fieldKey)}）</option>`);
+        });
+      });
+    }
+    walk(o.children);
+  });
+  walk(d && d.tree);
+  return out.join('');
+}
+
+function renderSteps() {
+  const box = $('ed-steps'); if (!box) return;
+  const doc = ($('t-doc') || {}).value || '';
+  box.innerHTML = ED.steps.map((s, i) => {
+    const vars = refVars(i);
+    return `<div class="stepcard">
+      <div class="stepbar"><span class="stepno">${i + 1}</span>
+        <input value="${esc(s.stepName)}" oninput="setStep(${i},'stepName',this.value)" placeholder="步骤名，如 查审批人" style="max-width:230px"/>
+        <span style="margin-left:auto"><button class="ghost danger" onclick="removeStep(${i})">删除这步</button></span></div>
+      <div id="st-${i}" style="display:none"></div>
+      <div class="grid">
+        <div><label>校验范围（明细行校验）</label>
+          <select onchange="setStep(${i},'condScope',this.value)">
+            <option value="DOC"${(s.condScope||'DOC')==='DOC'?' selected':''}>DOC · 单据级（判整单）</option>
+            <option value="EACH"${s.condScope==='EACH'?' selected':''}>EACH · 明细·每条（逐行判）</option>
+            <option value="NTH"${s.condScope==='NTH'?' selected':''}>NTH · 明细·第N条（判第 N 行）</option>
+          </select>
+          <div class="sub">DOC 判整单；EACH 对每一行明细逐行判（命中即记违规）；NTH 只判第 N 行</div></div>
+        ${(s.condScope==='EACH'||s.condScope==='NTH')?`<div><label>明细对象（数组对象）</label><select onchange="setStep(${i},'collectionPath',this.value)">${collectionOptions(doc, s.collectionPath)}</select></div>`:''}
+        ${s.condScope==='NTH'?`<div><label>第几条（0 开始）</label><input value="${esc(s.nthIndex)}" oninput="setStep(${i},'nthIndex',this.value)" placeholder="2"/></div>`:''}
+        <div><label>条件字段（留空=本步无条件）</label><select onchange="setStep(${i},'condField',this.value)">${(s.condScope==='EACH'||s.condScope==='NTH')?collectionFieldOptions(doc, s.collectionPath, s.condField):docFieldOptions(doc, s.condField)}</select>
+          <input style="margin-top:6px" value="${esc(s.condField)}" oninput="setStep(${i},'condField',this.value)"
+            placeholder="或直接写多字段算式：(售价 - 成本) / 成本"/>
+          <div class="sub">可写多字段算式（引擎翻译成 getNumber(...) 组合）；明细行字段同样支持（如 price * quantity）</div></div>
+        <div><label>运算符（共 ${Object.keys(SYNTAX.operators || {}).length} 种）</label>
+          <select title="${esc(valueHint(s.condOp))}" onchange="setStep(${i},'condOp',this.value)">${opOptions(s.condOp)}</select>
+          <div class="sub">${esc(valueHint(s.condOp))}</div></div>
+        <div><label>取值类型 / 取值（取值是该步的参数，可在规则里改）</label>
+          <div style="display:flex;gap:8px"><select onchange="setStep(${i},'condType',this.value)" style="max-width:110px">
+            ${typeOptions(s.condType)}</select>
+            <input value="${esc(s.condValue)}" oninput="setStep(${i},'condValue',this.value)" placeholder="0.30"/></div></div>
+        <div style="grid-column:span 3"><label>本步返回字段赋值（可添加多个；集合步骤逐条写入当前 SKU/区域项）</label>
+          ${(s.outputs || []).map((o,j) => `<div style="display:flex;gap:8px;margin:6px 0">
+            <input value="${esc(o.outputKey)}" oninput="setStepOutput(${i},${j},'outputKey',this.value)" placeholder="返回字段，如 instanceId" style="max-width:210px"/>
+            <select onchange="setStepOutput(${i},${j},'valueType',this.value);renderSteps()" style="max-width:170px">${['STRING','NUMBER','DECIMAL','INT','BOOLEAN','EXPR'].map(v => `<option value="${v}"${(o.valueType||'STRING')===v?' selected':''}>${v}</option>`).join('')}</select>
+            <input value="${esc(o.expression)}" oninput="setStepOutput(${i},${j},'expression',this.value)" placeholder="${o.valueType==='EXPR'?'(salePrice-costPrice)/costPrice > 0.3 ? \\\"T+2\\\" : \\\"T\\\"':'常量或表达式'}"/>
+            <button class="ghost danger" onclick="removeStepOutput(${i},${j})">移除</button>
+          </div>`).join('')}
+          <button onclick="addStepOutput(${i})">+ 添加返回字段</button>
+          <div class="sub">EXPR 可联合计算本作用域多个字段；如 (salePrice - costPrice) / costPrice。STRING 常量不需要额外引号。</div></div>
+      </div>
+      ${vars.length ? `<div class="flow">这一步可以引用前面步骤的产品：${[...new Set(vars)].map(v => `<span class="tag g">ext.${esc(v)}</span>`).join(' ')}
+        <span class="sub">（可在后续步骤条件中引用，如 ${'${ext.' + [...new Set(vars)][0] + '}'}）</span></div>` : ''}
+    </div>`;
+  }).join('') || '<div class="empty">还没有步骤，点「+ 添加步骤」</div>';
+}
+
+function edBody() {
+  const parameters = JSON.parse(($('t-parameters') || {}).value || '[]');
+  if (!Array.isArray(parameters)) throw new Error('自定义参数定义必须是 JSON 数组');
+  return {
+    ruleType: ($('t-code') || {}).value, typeName: ($('t-name') || {}).value,
+    ruleGroup: ($('t-group') || {}).value, sortOrder: Number(($('t-sort') || {}).value || 60),
+    docCode: ($('t-doc') || {}).value,
+    steps: ED.steps.map(s => Object.assign({}, s)), parameters
+  };
+}
+async function previewType() {
+  try {
+    const r = await post('rule/type/build', edBody());
+    $('ed-preview').innerHTML = `<div class="sub" style="margin-top:14px">生成的 DRL（每步一条规则，salience 递减 + 「上游产物就绪」+「本步未执行」双守卫）</div><pre>${esc(r.drlPreview)}</pre>`
+      + `<div class="sub" style="margin-top:8px">这条类型发布出来的规则名会是 <code>&lt;规则名&gt;#1</code>、<code>#2</code>…；可配参数：${(r.fields||[]).map(f => `<span class="tag b">${esc(f.fieldKey)}</span>`).join(' ')}</div>`;
+    msg('msg-type', '预览成功，检查无误后点「保存类型」', 'ok');
+  } catch (e) { msg('msg-type', e.message, 'err'); }
+}
+async function saveType() {
+  try {
+    const b = edBody();
+    let outputFields = [];
+    try { outputFields = JSON.parse(($('t-output-json') || {}).value || '[]'); }
+    catch (e) { throw new Error('返回结构不是合法 JSON：' + e.message); }
+    if (!Array.isArray(outputFields) || !outputFields.length) throw new Error('每个规则类型都要填写至少一个返回结构 JSON 节点');
+    b.outputStructure = outputFields;
+    if (!b.ruleType || !b.typeName) throw new Error('类型编码和名称必填');
+    if (!ED.steps.length) throw new Error('至少要有一个步骤');
+    const r = await post('rule/type/save', b);
+    msg('msg-type', r.message, 'ok');
+    await loadCommon();
+    const target = '#/types/' + b.ruleType;
+    if (location.hash === target) route(); else location.hash = target;
+  } catch (e) { msg('msg-type', e.message, 'err'); }
+}
+
+/* ============ 路由 ============ */
+let LOADED = false;
+async function editType(code) {
+  const view = $('view');
+  view.innerHTML = '<div class="card"><div class="sub">正在加载规则类型、步骤和返回结构…</div></div>';
+  const typeMeta = TYPES.find(x => x.ruleType === code);
+  if (!typeMeta || typeMeta.builtin) {
+    view.innerHTML = '<div class="card"><div class="empty">规则类型不存在，或内置类型不可编辑</div></div>';
+    return;
+  }
+  try {
+    const [stepResult, outputRows] = await Promise.all([
+      api('rule/type/steps?ruleType=' + encodeURIComponent(code)),
+      api('rule/type/outputs/tree?ruleType=' + encodeURIComponent(code))
+    ]);
+    ED = {steps: (stepResult.steps || []).map(s => {
+      const step = Object.assign({
+      stepName:'', condField:'', condOp:'>=', condType:'NUMBER', condValue:'', condScope:'DOC',
+      collectionPath:'', nthIndex:'', actionType:'SET_EXT',
+      message:'', outputs:[]
+      }, s);
+      return step;
+    })};
+    view.innerHTML = typeEditor(typeMeta, outputRows);
+    if (!ED.steps.length) addStep(); else renderSteps();
+    updateOutputPreview();
+  } catch (e) {
+    view.innerHTML = `<div class="card"><div class="empty">加载规则类型失败：${esc(e.message)}</div></div>`;
+  }
+}
+function nativeTypeForm() {
+ $('view').innerHTML=card('注册原生规则类型','可绑定单据，也可直接使用任意原生事实、DMN、PMML 或 KJAR。', '',
+ `<div class="grid"><div><label>规则类型编码</label><input id="nt-code"/></div><div><label>类型名称</label><input id="nt-name"/></div><div><label>单据编码（可选）</label><input id="nt-doc"/></div></div><button onclick="saveNativeType()">保存类型</button><div id="msg-native-type" class="msg"></div>`);
+}
+async function saveNativeType() {
+ try {const ruleType=$('nt-code').value.trim();await post('rule/type/native',{ruleType,typeName:$('nt-name').value.trim(),docCode:$('nt-doc').value.trim() || null});await loadCommon();location.hash='#/types/'+encodeURIComponent(ruleType);route();}
+ catch(e){msg('msg-native-type',e.message,'err');}
+}
+function route() {
+  if (!LOADED) return;   // 数据没到位不渲染（浏览器加载带 hash 的地址会先触发一次 hashchange）
+  const h = location.hash.replace(/^#\/?/, '').split('/');
+  const view = $('view');
+  const top = h[0] || 'docs';
+  ['docs','types'].forEach(k => { const el = $('tab-' + k); if (el) el.className = (k === top ? 'on' : ''); });
+  if (top === 'docs' && h[1]) view.innerHTML = docDetail(decodeURIComponent(h[1]));
+  else if (top === 'types' && h[1] === 'new') { ED = {steps: []}; view.innerHTML = typeEditor(); addStep(); }
+  else if (top === 'types' && h[1] === 'edit' && h[2]) { editType(decodeURIComponent(h[2])); return view; }
+  else if (top === 'types' && h[1]) { view.innerHTML = typeDetail(decodeURIComponent(h[1])); loadStepPanel(decodeURIComponent(h[1])); loadOutputTree(decodeURIComponent(h[1])); loadReleasePanel(decodeURIComponent(h[1])); }
+  else if (top === 'types') view.innerHTML = typesList();
+  else view.innerHTML = docsList();
+  updateOutputPreview();   // 详情/新建类型页有「返回结果结构」卡片时，把结构示例渲染出来
+  return view;
+}
+async function refresh() { await loadCommon(); LOADED = true; route(); }
+
+/* ============ 步骤链展示 ============ */
+async function loadStepPanel(code) {
+  const box = $('steps-box'); if (!box) return;
+  try {
+    const r = await api('rule/type/steps?ruleType=' + encodeURIComponent(code));
+    const steps = r.steps || [];
+    if (!steps.length) { box.innerHTML = ''; return; }
+    const t = TYPES.find(x => x.ruleType === code) || {};
+    let html = `<div class="stepbar" style="margin-top:18px"><span class="stepno" style="background:#0f172a">≡</span><b>步骤链</b><span class="sub">按序号执行</span>
+      <span style="margin-left:auto" class="sub">每步：条件 → 动作（写单据字段）→ 后续步骤可直接引用前一步写入的字段</span></div>`;
+    for (const s of steps) {
+      const kind = {SET_EXT:'写单据字段'}[s.actionType] || s.actionType;
+      const cond = s.condField ? `<code>${esc(s.condField)} ${esc(s.condOp||'')} ${esc(s.condValue||'')}</code>` : '<span class="sub">无条件</span>';
+      html += `<div class="stepcard"><div class="stepbar"><span class="stepno">${s.stepNo}</span><b>${esc(s.stepName||'')}</b>
+          <span class="tag b">${esc(kind)}</span>
+        </div>
+        <div class="kv"><div class="k">条件</div><div>${cond}</div>
+          <div class="k">赋值</div><div>${(s.outputs || []).map(o => `ext[${esc(o.outputKey)}] = ${esc(o.expression)} (${esc(o.valueType)})`).join('<br>') || '无逐项赋值（集合聚合校验）'}</div>
+          <div class="k">消息</div><div>${esc(s.message||'-')}</div></div></div>`;
+    }
+    box.innerHTML = html;
+  } catch (e) { box.innerHTML = '<div class="sub">步骤链读取失败：' + esc(e.message) + '</div>'; }
+}
+
+/* ============ 单据动作 ============ */
+async function saveDoc() {
+  try {
+    await post('rule/doc/save', {docCode:$('d-code').value.trim(), docName:$('d-name').value.trim(), remark:$('d-remark').value.trim()});
+    msg('msg-doc', '单据已登记', 'ok'); await refresh();
+  } catch (e) { msg('msg-doc', e.message, 'err'); }
+}
+async function removeDoc(code) {
+  try { const r = await del('rule/doc/' + encodeURIComponent(code)); msg('msg-doc', r.message, 'ok'); await refresh(); }
+  catch (e) { msg('msg-doc', e.message, 'err'); }
+}
+async function saveObj(docCode) {
+  try {
+    await post('rule/doc/object/save', {docCode:docCode, objectKey:$('o-key').value.trim(), objectName:$('o-name').value.trim(),
+      parentObjectKey:$('o-parent').value || null, isCollection:Number($('o-coll').value), valuePath:$('o-path').value.trim()});
+    msg('msg-obj', '对象已保存', 'ok'); await refresh();
+  } catch (e) { msg('msg-obj', e.message, 'err'); }
+}
+async function saveField(docCode, objectKey) {
+  const g = k => $('f-' + objectKey + '-' + k);
+  try {
+    await post('rule/doc/field/save', {docCode:docCode, objectKey:objectKey, fieldName:g('name').value.trim(),
+      fieldKey:g('key').value.trim(), fieldType:g('type').value, exampleValue:g('ex').value.trim(),
+      fieldDesc:g('desc').value.trim(), expr:g('expr').value.trim(), sortOrder:99});
+    msg('msg-f-' + objectKey, '字段已保存', 'ok'); await refresh();
+  } catch (e) { msg('msg-f-' + objectKey, e.message, 'err'); }
+}
+/* 勾选「决策输出字段」：勾上后评估响应里的 decision 会带上它 —— 这就是业务的决策契约 */
+function loadFieldForm(docCode, objectKey, fieldKey) {
+  const d = DOCS.find(x => x.docCode === docCode);
+  let found = null;
+  const walk = ns => (ns||[]).forEach(o => { if (o.objectKey === objectKey) (o.fields||[]).forEach(f => { if (f.fieldKey === fieldKey) found = f; }); walk(o.children); });
+  walk(d && d.tree);
+  if (!found) return;
+  toggleNew('new-field-' + objectKey);
+  const g = k => $('f-' + objectKey + '-' + k);
+  g('name').value = found.fieldName; g('key').value = found.fieldKey; g('type').value = found.fieldType;
+  g('ex').value = found.exampleValue || ''; g('desc').value = found.fieldDesc || ''; g('expr').value = found.expr || '';
+}
+
+/* ============ 规则动作 ============ */
+async function createRule(ruleType) {
+  try {
+    const params = paramValues(ruleType);
+    const existing = $('configured-rule-id').value;
+    if (existing) {await post('rule/publish/' + existing,params);msg('msg-rule','参数已发布','ok');await refresh();return;}
+    const name = $('r-name').value.trim();
+    if (!name) throw new Error('规则名必填');
+    const r = await post('rule/create', {ruleName:name, ruleType:ruleType, ruleParams:JSON.stringify(params)});
+    await post('rule/publish/' + r.id, params, r.version);
+    msg('msg-rule', '已保存并发布：' + name, 'ok');
+    await refresh();
+  } catch (e) { msg('msg-rule', e.message, 'err'); }
+}
+function editConfiguredRule(id) {
+  const rule = RULES.find(r => r.id === id); if (!rule) return;
+  $('configured-rule-id').value = id; $('new-rule').style.display = 'block';
+  $('r-name').value = rule.ruleName; const params=JSON.parse(rule.ruleParams || '{}');
+  Object.keys(params).forEach(key => {const element=$('rp-'+key);if(element)element.value=params[key];});
+  $('new-rule').scrollIntoView({behavior:'smooth'});
+}
+function releaseCard(code) {
+ return card('发布版本与规则资源包','单据、返回结构和规则一起发布。草稿修改不影响当前版本；回滚会生成新的发布版本。',
+ `<button onclick="publishBundle('${esc(code)}')">发布整个类型</button>`,
+ `<label>原生资源包配置 JSON</label><textarea id="release-config" style="min-height:180px" spellcheck="false"></textarea>
+ <div class="sub">支持 resources（DRL、DMN、DTABLE、DSL/DSLR、PMML 等原生 KIE 资源）、kmoduleXml、pomXml、executableModel、KJAR base64 或 Maven artifact。二进制资源使用 base64。</div>
+ <input type="file" id="release-file"/><button onclick="addReleaseFile()">添加资源文件</button>
+ <button onclick="saveBundleDraft('${esc(code)}')">保存资源草稿</button>
+ <div class="msg" id="msg-release"></div><div id="release-history"></div>`);
+}
+let RELEASE_DRAFT = null;
+async function loadReleasePanel(code) {
+ try {
+  RELEASE_DRAFT = await api('rule/releases/'+encodeURIComponent(code)+'/draft');
+  if(!$('release-config'))return;
+  $('release-config').value=JSON.stringify(RELEASE_DRAFT.configuration || {},null,2);
+  const history=await api('rule/releases/'+encodeURIComponent(code));
+  $('release-history').innerHTML=history.length ? `<table><thead><tr><th>版本</th><th>发布人</th><th>说明</th><th></th></tr></thead><tbody>${history.map(r=>`<tr><td>v${r.revision} / ${r.id}</td><td>${esc(r.published_by)}</td><td>${esc(r.remark||'')}</td><td><button onclick="rollbackBundle('${esc(code)}',${r.id})">回滚到此版本</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty">尚未发布规则包</div>';
+ } catch(e){msg('msg-release',e.message,'err');}
+}
+async function addReleaseFile() {
+ try {
+  const file=$('release-file').files[0];if(!file)throw new Error('请选择文件');
+  const configuration=JSON.parse($('release-config').value || '{}');
+  const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i++)binary+=String.fromCharCode(bytes[i]);
+  if(file.name.endsWith('.jar')) {configuration.kjarBase64=btoa(binary);delete configuration.artifact;delete configuration.resources;delete configuration.pomXml;delete configuration.kmoduleXml;}
+  else {configuration.resources=configuration.resources || [];const path='src/main/resources/'+file.name;configuration.resources=configuration.resources.filter(r=>r.path!==path);const resource={path,base64:btoa(binary)};if(/\.(csv|xlsx?)$/i.test(file.name)){resource.resourceType="DTABLE";resource.inputType=/\.csv$/i.test(file.name)?"CSV":"XLS";}configuration.resources.push(resource);}
+  $('release-config').value=JSON.stringify(configuration,null,2);
+ } catch(e){msg('msg-release',e.message,'err');}
+}
+async function saveBundleDraft(code) {
+ try {const configuration=JSON.parse($('release-config').value || '{}');const r=await api('rule/releases/'+encodeURIComponent(code)+'/draft',{method:'PUT',headers:J.headers,body:JSON.stringify({expectedDraftVersion:RELEASE_DRAFT.draftVersion,configuration})});RELEASE_DRAFT.draftVersion=r.draftVersion;msg('msg-release','资源草稿已保存','ok');}
+ catch(e){msg('msg-release',e.message,'err');}
+}
+async function publishBundle(code) {
+ try {await saveBundleDraftOrThrow(code);await post('rule/releases/'+encodeURIComponent(code),{expectedRevision:RELEASE_DRAFT.revision,expectedDraftVersion:RELEASE_DRAFT.draftVersion,remark:'运营发布'});await loadReleasePanel(code);msg('msg-release','整个规则类型已发布','ok');}
+ catch(e){msg('msg-release',e.message,'err');}
+}
+async function saveBundleDraftOrThrow(code) {
+ const configuration=JSON.parse($('release-config').value || '{}');
+ const r=await api('rule/releases/'+encodeURIComponent(code)+'/draft',{method:'PUT',headers:J.headers,body:JSON.stringify({expectedDraftVersion:RELEASE_DRAFT.draftVersion,configuration})});RELEASE_DRAFT.draftVersion=r.draftVersion;
+}
+async function rollbackBundle(code,id) {
+ try {await post('rule/releases/'+encodeURIComponent(code)+'/rollback',{releaseId:id,expectedRevision:RELEASE_DRAFT.revision,remark:'运营回滚'});await loadReleasePanel(code);msg('msg-release','已恢复所选版本','ok');}
+ catch(e){msg('msg-release',e.message,'err');}
+}
+function toggleNativeRule(show) {
+  const box = $('native-rule-editor'); if (!box) return;
+  box.style.display = show === false ? 'none' : (box.style.display === 'none' ? 'block' : 'none');
+  if (box.style.display !== 'none' && !$('native-rule-id').value) $('native-rule-source').value = '';
+}
+function editNativeRule(id) {
+  const rule = RULES.find(x => x.id === id); if (!rule) return;
+  const box = $('native-rule-editor'); if (!box) return;
+  box.style.display = 'block';
+  $('native-rule-id').value = id;
+  $('native-rule-name').value = rule.ruleName;
+  $('native-rule-source').value = String(rule.drlContent || '').replace(/^\/\/ @rule-source-mode: NATIVE_DRL\n/, '');
+  box.scrollIntoView({behavior:'smooth', block:'start'});
+}
+async function saveNativeRule(ruleType) {
+  try {
+    const id = $('native-rule-id').value;
+    const drlContent = $('native-rule-source').value;
+    if (!drlContent.trim()) throw new Error('请填写完整 DRL 原文');
+    if (id) {
+      await post('rule/native/publish/' + id, {drlContent});
+      msg('msg-native-rule', '原生 DRL 编译通过并已发布', 'ok');
+    } else {
+      const ruleName = $('native-rule-name').value.trim();
+      if (!ruleName) throw new Error('规则记录名称必填');
+      const draft = await post('rule/native/create', {ruleName, ruleType, drlContent, remark:'原生 DRL'});
+      $('native-rule-id').value = draft.id;
+      await post('rule/native/publish/' + draft.id, {drlContent},draft.version);
+      msg('msg-native-rule', '原生 DRL 编译通过并已发布', 'ok');
+    }
+    await refresh();
+  } catch (e) { msg('msg-native-rule', e.message, 'err'); }
+}
+async function toggleRule(id, status) {
+  try { await post('rule/status/' + id, {status: status}); await refresh(); } catch (e) { alert(e.message); }
+}
+async function delRule(id) {
+  try { await api('rule/' + id, {method:'DELETE'}); await refresh(); } catch (e) { alert(e.message); }
+}
+async function showDrl(id) {
+  const r = RULES.find(x => x.id === id);
+  if (!r) return;
+  const box = document.createElement('div');
+  box.className = 'card';
+  const drl = String(r.drlContent || '').replace(/^\/\/ @rule-source-mode: NATIVE_DRL\n/, '');
+  box.innerHTML = `<div class="head"><h2>${esc(r.ruleName)} 的 DRL</h2><div class="acts"><button onclick="this.closest('.card').remove()">关闭</button></div></div><pre>${esc(drl || '(空)')}</pre>`;
+  $('view').prepend(box);
+}
+async function probe(ruleType) {
+  try {
+    const doc = ($('p-doc')||{}).value;
+    const fact = JSON.parse(($('p-fact')||{}).value || '{}');
+    const r = await post('rule/evaluate?ruleType=' + encodeURIComponent(ruleType), fact);
+    msg('msg-probe', '命中 ' + (r.fired == null ? '?' : r.fired) + ' 条规则', 'ok');
+    const out = $('p-out');
+    if (out) {
+      out.style.display = 'block';
+      const ext = r.ext || {};
+      out.textContent = '单据数据：' + JSON.stringify(r.data) + '\n\n回填 ext：' + JSON.stringify(ext, null, 2)
+        + '\n\n消息：\n' + (r.messages||[]).map(m => '· ' + m).join('\n');
+    }
+  } catch (e) { msg('msg-probe', e.message, 'err'); }
+}
+
+
+loadCommon().then(() => { LOADED = true; route(); }).catch(e => $('view').innerHTML = '<div class="card">初始化失败：' + esc(e.message) + '</div>');
+window.addEventListener('hashchange', route);
+</script>
+</body>
+</html>

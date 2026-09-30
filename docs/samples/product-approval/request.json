@@ -1,0 +1,52 @@
+{
+  "bizId": "PRODUCT-001",
+  "spu": {
+    "spuCode": "SPU-001",
+    "spuName": "示例商品",
+    "salePrice": "140.00",
+    "costPrice": "100.00"
+  },
+  "sku": [
+    {
+      "skuCode": "SKU-001",
+      "salePrice": "140.00",
+      "costPrice": "100.00",
+      "stock": 20
+    },
+    {
+      "skuCode": "SKU-002",
+      "salePrice": "120.00",
+      "costPrice": "100.00",
+      "stock": 0
+    },
+    {
+      "skuCode": "SKU-003",
+      "salePrice": "0.13",
+      "costPrice": "0.10",
+      "stock": 10
+    }
+  ],
+  "regionPrice": [
+    {
+      "skuCode": "SKU-001",
+      "regionCode": "EAST",
+      "salePrice": "140.00",
+      "costPrice": "100.00",
+      "marketPrice": "150.00"
+    },
+    {
+      "skuCode": "SKU-002",
+      "regionCode": "WEST",
+      "salePrice": "120.00",
+      "costPrice": "100.00",
+      "marketPrice": "110.00"
+    },
+    {
+      "skuCode": "SKU-003",
+      "regionCode": "NORTH",
+      "salePrice": "0.13",
+      "costPrice": "0.10",
+      "marketPrice": "0.15"
+    }
+  ]
+}

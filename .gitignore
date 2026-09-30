@@ -33,3 +33,9 @@ logs/
 *.jar
 *.war
 *.ear
+
+# Local credentials and Python artifacts
+.env
+.env.*
+__pycache__/
+*.pyc

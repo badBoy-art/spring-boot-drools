@@ -1,0 +1,7 @@
+FROM eclipse-temurin:8-jre
+RUN mkdir -p /app/.m2 && chown -R 10001:10001 /app
+WORKDIR /app
+COPY --chown=10001:10001 drools.worker/target/drools.worker-1.0.0.jar app.jar
+USER 10001:10001
+EXPOSE 8090
+ENTRYPOINT ["java", "-Duser.home=/app", "-jar", "/app/app.jar"]

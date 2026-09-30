@@ -1,0 +1,285 @@
+{
+  "ruleType": "PRODUCT_MULTI_APPROVAL",
+  "typeName": "商品多层审批",
+  "ruleGroup": "PRODUCT",
+  "typeDesc": "SPU、SKU列表、区域价格列表依次审批；按成本口径计算毛利率",
+  "docCode": "PRODUCT_SKU",
+  "sortOrder": 1,
+  "parameters": [
+    {
+      "fieldKey": "marginThreshold",
+      "fieldName": "毛利率审批阈值（严格大于）",
+      "fieldType": "DECIMAL",
+      "defaultValue": "0.3",
+      "minValue": "0",
+      "placeholder": "0.3或30%"
+    }
+  ],
+  "steps": [
+    {
+      "stepName": "SPU属性审批并赋值1个字段",
+      "condScope": "DOC",
+      "actionType": "SET_EXT",
+      "outputs": [
+        {
+          "outputKey": "instanceId",
+          "valueType": "EXPR",
+          "expression": "new java.math.BigDecimal(getString(\"spu.costPrice\")).signum() <= 0 ? \"INVALID_COST\" : (new java.math.BigDecimal(getString(\"spu.salePrice\")).subtract(new java.math.BigDecimal(getString(\"spu.costPrice\"))).compareTo(new java.math.BigDecimal(getString(\"spu.costPrice\")).multiply(new java.math.BigDecimal(\"${marginThreshold}\"))) > 0 ? \"T+2\" : \"T\")"
+        }
+      ]
+    },
+    {
+      "stepName": "遍历每个SKU审批并赋值2个字段",
+      "condScope": "EACH",
+      "collectionPath": "sku",
+      "actionType": "SET_EXT",
+      "outputs": [
+        {
+          "outputKey": "instanceId",
+          "valueType": "EXPR",
+          "expression": "new java.math.BigDecimal(getString(\"costPrice\")).signum() <= 0 ? \"INVALID_COST\" : (new java.math.BigDecimal(getString(\"salePrice\")).subtract(new java.math.BigDecimal(getString(\"costPrice\"))).compareTo(new java.math.BigDecimal(getString(\"costPrice\")).multiply(new java.math.BigDecimal(\"${marginThreshold}\"))) > 0 ? \"T+2\" : \"T\")"
+        },
+        {
+          "outputKey": "marginRate",
+          "valueType": "EXPR",
+          "expression": "new java.math.BigDecimal(getString(\"costPrice\")).signum() <= 0 ? null : new java.math.BigDecimal(getString(\"salePrice\")).subtract(new java.math.BigDecimal(getString(\"costPrice\"))).divide(new java.math.BigDecimal(getString(\"costPrice\")), 8, 4)"
+        }
+      ]
+    },
+    {
+      "stepName": "遍历每个区域价格审批并赋值3个字段",
+      "condScope": "EACH",
+      "collectionPath": "regionPrice",
+      "actionType": "SET_EXT",
+      "outputs": [
+        {
+          "outputKey": "instanceId",
+          "valueType": "EXPR",
+          "expression": "new java.math.BigDecimal(getString(\"costPrice\")).signum() <= 0 ? \"INVALID_COST\" : (new java.math.BigDecimal(getString(\"salePrice\")).subtract(new java.math.BigDecimal(getString(\"costPrice\"))).compareTo(new java.math.BigDecimal(getString(\"costPrice\")).multiply(new java.math.BigDecimal(\"${marginThreshold}\"))) > 0 ? \"T+2\" : \"T\")"
+        },
+        {
+          "outputKey": "marginRate",
+          "valueType": "EXPR",
+          "expression": "new java.math.BigDecimal(getString(\"costPrice\")).signum() <= 0 ? null : new java.math.BigDecimal(getString(\"salePrice\")).subtract(new java.math.BigDecimal(getString(\"costPrice\"))).divide(new java.math.BigDecimal(getString(\"costPrice\")), 8, 4)"
+        },
+        {
+          "outputKey": "priceDecision",
+          "valueType": "EXPR",
+          "expression": "new java.math.BigDecimal(getString(\"costPrice\")).signum() <= 0 ? \"INVALID_COST\" : (new java.math.BigDecimal(getString(\"salePrice\")).compareTo(new java.math.BigDecimal(getString(\"marketPrice\"))) <= 0 ? \"STANDARD\" : \"REVIEW\")"
+        }
+      ]
+    }
+  ],
+  "outputStructure": [
+    {
+      "outputPath": "spu",
+      "label": "SPU审批结果",
+      "nodeKind": "OBJECT",
+      "sortOrder": 1
+    },
+    {
+      "outputPath": "spu.spuCode",
+      "parentPath": "spu",
+      "label": "SPU编码",
+      "nodeKind": "LEAF",
+      "valueType": "STRING",
+      "source": "DATA",
+      "sourceValue": "spu.spuCode",
+      "sortOrder": 2
+    },
+    {
+      "outputPath": "spu.spuName",
+      "parentPath": "spu",
+      "label": "SPU名称",
+      "nodeKind": "LEAF",
+      "valueType": "STRING",
+      "source": "DATA",
+      "sourceValue": "spu.spuName",
+      "sortOrder": 3
+    },
+    {
+      "outputPath": "spu.salePrice",
+      "parentPath": "spu",
+      "label": "spu销售价",
+      "nodeKind": "LEAF",
+      "valueType": "DECIMAL",
+      "source": "DATA",
+      "sourceValue": "spu.salePrice",
+      "sortOrder": 4
+    },
+    {
+      "outputPath": "spu.costPrice",
+      "parentPath": "spu",
+      "label": "spu成本价",
+      "nodeKind": "LEAF",
+      "valueType": "DECIMAL",
+      "source": "DATA",
+      "sourceValue": "spu.costPrice",
+      "sortOrder": 5
+    },
+    {
+      "outputPath": "spu.instanceId",
+      "parentPath": "spu",
+      "label": "审批流程实例编码",
+      "nodeKind": "LEAF",
+      "valueType": "STRING",
+      "source": "EXT",
+      "sourceValue": "instanceId",
+      "sortOrder": 6
+    },
+    {
+      "outputPath": "sku",
+      "label": "SKU逐项审批结果",
+      "nodeKind": "ARRAY",
+      "sortOrder": 2,
+      "arrayFrom": "data.sku"
+    },
+    {
+      "outputPath": "sku.skuCode",
+      "parentPath": "sku",
+      "label": "sku的SKU编码",
+      "nodeKind": "LEAF",
+      "valueType": "STRING",
+      "source": "DATA",
+      "sourceValue": "skuCode",
+      "sortOrder": 8
+    },
+    {
+      "outputPath": "sku.salePrice",
+      "parentPath": "sku",
+      "label": "sku销售价",
+      "nodeKind": "LEAF",
+      "valueType": "DECIMAL",
+      "source": "DATA",
+      "sourceValue": "salePrice",
+      "sortOrder": 9
+    },
+    {
+      "outputPath": "sku.costPrice",
+      "parentPath": "sku",
+      "label": "sku成本价",
+      "nodeKind": "LEAF",
+      "valueType": "DECIMAL",
+      "source": "DATA",
+      "sourceValue": "costPrice",
+      "sortOrder": 10
+    },
+    {
+      "outputPath": "sku.stock",
+      "parentPath": "sku",
+      "label": "SKU库存",
+      "nodeKind": "LEAF",
+      "valueType": "INT",
+      "source": "DATA",
+      "sourceValue": "stock",
+      "sortOrder": 11
+    },
+    {
+      "outputPath": "sku.instanceId",
+      "parentPath": "sku",
+      "label": "审批流程实例编码",
+      "nodeKind": "LEAF",
+      "valueType": "STRING",
+      "source": "EXT",
+      "sourceValue": "instanceId",
+      "sortOrder": 12
+    },
+    {
+      "outputPath": "sku.marginRate",
+      "parentPath": "sku",
+      "label": "(销售价-成本价)/成本价",
+      "nodeKind": "LEAF",
+      "valueType": "DECIMAL",
+      "source": "EXT",
+      "sourceValue": "marginRate",
+      "sortOrder": 13
+    },
+    {
+      "outputPath": "regionPrice",
+      "label": "区域价格逐项审批结果",
+      "nodeKind": "ARRAY",
+      "sortOrder": 3,
+      "arrayFrom": "data.regionPrice"
+    },
+    {
+      "outputPath": "regionPrice.skuCode",
+      "parentPath": "regionPrice",
+      "label": "regionPrice的SKU编码",
+      "nodeKind": "LEAF",
+      "valueType": "STRING",
+      "source": "DATA",
+      "sourceValue": "skuCode",
+      "sortOrder": 15
+    },
+    {
+      "outputPath": "regionPrice.regionCode",
+      "parentPath": "regionPrice",
+      "label": "区域编码",
+      "nodeKind": "LEAF",
+      "valueType": "STRING",
+      "source": "DATA",
+      "sourceValue": "regionCode",
+      "sortOrder": 16
+    },
+    {
+      "outputPath": "regionPrice.salePrice",
+      "parentPath": "regionPrice",
+      "label": "regionPrice销售价",
+      "nodeKind": "LEAF",
+      "valueType": "DECIMAL",
+      "source": "DATA",
+      "sourceValue": "salePrice",
+      "sortOrder": 17
+    },
+    {
+      "outputPath": "regionPrice.costPrice",
+      "parentPath": "regionPrice",
+      "label": "regionPrice成本价",
+      "nodeKind": "LEAF",
+      "valueType": "DECIMAL",
+      "source": "DATA",
+      "sourceValue": "costPrice",
+      "sortOrder": 18
+    },
+    {
+      "outputPath": "regionPrice.marketPrice",
+      "parentPath": "regionPrice",
+      "label": "区域市场参考价",
+      "nodeKind": "LEAF",
+      "valueType": "DECIMAL",
+      "source": "DATA",
+      "sourceValue": "marketPrice",
+      "sortOrder": 19
+    },
+    {
+      "outputPath": "regionPrice.instanceId",
+      "parentPath": "regionPrice",
+      "label": "审批流程实例编码",
+      "nodeKind": "LEAF",
+      "valueType": "STRING",
+      "source": "EXT",
+      "sourceValue": "instanceId",
+      "sortOrder": 20
+    },
+    {
+      "outputPath": "regionPrice.marginRate",
+      "parentPath": "regionPrice",
+      "label": "(销售价-成本价)/成本价",
+      "nodeKind": "LEAF",
+      "valueType": "DECIMAL",
+      "source": "EXT",
+      "sourceValue": "marginRate",
+      "sortOrder": 21
+    },
+    {
+      "outputPath": "regionPrice.priceDecision",
+      "parentPath": "regionPrice",
+      "label": "区域销售价与市场参考价比较结果",
+      "nodeKind": "LEAF",
+      "valueType": "STRING",
+      "source": "EXT",
+      "sourceValue": "priceDecision",
+      "sortOrder": 22
+    }
+  ]
+}

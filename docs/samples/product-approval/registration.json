@@ -1,0 +1,196 @@
+{
+  "document": {
+    "docCode": "PRODUCT_SKU",
+    "docName": "SKU商品单据（SPU、SKU列表、区域价格列表）",
+    "remark": "商品多层审批接入单据；sku与regionPrice是两个独立集合",
+    "status": 1
+  },
+  "objects": [
+    {
+      "objectKey": "root",
+      "objectName": "商品单据",
+      "valuePath": "",
+      "parentObjectKey": null,
+      "isCollection": 0,
+      "docCode": "PRODUCT_SKU",
+      "status": 1,
+      "sortOrder": 1,
+      "remark": "商品单据"
+    },
+    {
+      "objectKey": "spu",
+      "objectName": "SPU 商品主信息",
+      "valuePath": "spu",
+      "parentObjectKey": "root",
+      "isCollection": 0,
+      "docCode": "PRODUCT_SKU",
+      "status": 1,
+      "sortOrder": 2,
+      "remark": "SPU 商品主信息"
+    },
+    {
+      "objectKey": "sku",
+      "objectName": "SKU 商品规格列表",
+      "valuePath": "sku",
+      "parentObjectKey": "root",
+      "isCollection": 1,
+      "docCode": "PRODUCT_SKU",
+      "status": 1,
+      "sortOrder": 3,
+      "remark": "SKU 商品规格列表"
+    },
+    {
+      "objectKey": "regionPrice",
+      "objectName": "SKU 区域价格列表",
+      "valuePath": "regionPrice",
+      "parentObjectKey": "root",
+      "isCollection": 1,
+      "docCode": "PRODUCT_SKU",
+      "status": 1,
+      "sortOrder": 4,
+      "remark": "SKU 区域价格列表"
+    }
+  ],
+  "fields": [
+    {
+      "docCode": "PRODUCT_SKU",
+      "objectKey": "root",
+      "fieldKey": "bizId",
+      "fieldName": "业务单据编号",
+      "fieldType": "STRING",
+      "exampleValue": "PRODUCT-001",
+      "fieldDesc": "本次商品审批的业务追踪标识",
+      "sortOrder": 1
+    },
+    {
+      "docCode": "PRODUCT_SKU",
+      "objectKey": "spu",
+      "fieldKey": "spu.spuCode",
+      "fieldName": "SPU编码",
+      "fieldType": "STRING",
+      "exampleValue": "SPU-001",
+      "fieldDesc": "商品主信息唯一业务编码",
+      "sortOrder": 2
+    },
+    {
+      "docCode": "PRODUCT_SKU",
+      "objectKey": "spu",
+      "fieldKey": "spu.spuName",
+      "fieldName": "SPU名称",
+      "fieldType": "STRING",
+      "exampleValue": "示例商品",
+      "fieldDesc": "商品名称",
+      "sortOrder": 3
+    },
+    {
+      "docCode": "PRODUCT_SKU",
+      "objectKey": "spu",
+      "fieldKey": "spu.salePrice",
+      "fieldName": "spu销售价",
+      "fieldType": "DECIMAL",
+      "exampleValue": "140.00",
+      "fieldDesc": "用于毛利率分子的销售价格",
+      "sortOrder": 4
+    },
+    {
+      "docCode": "PRODUCT_SKU",
+      "objectKey": "spu",
+      "fieldKey": "spu.costPrice",
+      "fieldName": "spu成本价",
+      "fieldType": "DECIMAL",
+      "exampleValue": "100.00",
+      "fieldDesc": "毛利率分母；小于等于0返回INVALID_COST",
+      "sortOrder": 5
+    },
+    {
+      "docCode": "PRODUCT_SKU",
+      "objectKey": "sku",
+      "fieldKey": "sku.skuCode",
+      "fieldName": "sku的SKU编码",
+      "fieldType": "STRING",
+      "exampleValue": "SKU-001",
+      "fieldDesc": "商品规格业务编码；区域价格用该字段关联SKU",
+      "sortOrder": 6
+    },
+    {
+      "docCode": "PRODUCT_SKU",
+      "objectKey": "sku",
+      "fieldKey": "sku.salePrice",
+      "fieldName": "sku销售价",
+      "fieldType": "DECIMAL",
+      "exampleValue": "140.00",
+      "fieldDesc": "用于毛利率分子的销售价格",
+      "sortOrder": 7
+    },
+    {
+      "docCode": "PRODUCT_SKU",
+      "objectKey": "sku",
+      "fieldKey": "sku.costPrice",
+      "fieldName": "sku成本价",
+      "fieldType": "DECIMAL",
+      "exampleValue": "100.00",
+      "fieldDesc": "毛利率分母；小于等于0返回INVALID_COST",
+      "sortOrder": 8
+    },
+    {
+      "docCode": "PRODUCT_SKU",
+      "objectKey": "sku",
+      "fieldKey": "sku.stock",
+      "fieldName": "SKU库存",
+      "fieldType": "INT",
+      "exampleValue": "20",
+      "fieldDesc": "商品规格库存量，返回时透传",
+      "sortOrder": 9
+    },
+    {
+      "docCode": "PRODUCT_SKU",
+      "objectKey": "regionPrice",
+      "fieldKey": "regionPrice.skuCode",
+      "fieldName": "regionPrice的SKU编码",
+      "fieldType": "STRING",
+      "exampleValue": "SKU-001",
+      "fieldDesc": "商品规格业务编码；区域价格用该字段关联SKU",
+      "sortOrder": 10
+    },
+    {
+      "docCode": "PRODUCT_SKU",
+      "objectKey": "regionPrice",
+      "fieldKey": "regionPrice.regionCode",
+      "fieldName": "区域编码",
+      "fieldType": "STRING",
+      "exampleValue": "EAST",
+      "fieldDesc": "区域价格所属区域",
+      "sortOrder": 11
+    },
+    {
+      "docCode": "PRODUCT_SKU",
+      "objectKey": "regionPrice",
+      "fieldKey": "regionPrice.salePrice",
+      "fieldName": "regionPrice销售价",
+      "fieldType": "DECIMAL",
+      "exampleValue": "140.00",
+      "fieldDesc": "用于毛利率分子的销售价格",
+      "sortOrder": 12
+    },
+    {
+      "docCode": "PRODUCT_SKU",
+      "objectKey": "regionPrice",
+      "fieldKey": "regionPrice.costPrice",
+      "fieldName": "regionPrice成本价",
+      "fieldType": "DECIMAL",
+      "exampleValue": "100.00",
+      "fieldDesc": "毛利率分母；小于等于0返回INVALID_COST",
+      "sortOrder": 13
+    },
+    {
+      "docCode": "PRODUCT_SKU",
+      "objectKey": "regionPrice",
+      "fieldKey": "regionPrice.marketPrice",
+      "fieldName": "区域市场参考价",
+      "fieldType": "DECIMAL",
+      "exampleValue": "150.00",
+      "fieldDesc": "区域销售价不高于此价格为STANDARD，否则REVIEW",
+      "sortOrder": 14
+    }
+  ]
+}
